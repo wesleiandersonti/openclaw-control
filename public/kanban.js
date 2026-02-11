@@ -246,6 +246,8 @@ async function loadTasks() {
 function renderTaskCard(task) {
   const overdue = isOverdue(task.due_date);
   const hasLLM = task.provider && task.model;
+  const canExecuteAI = hasLLM && task.description && task.status !== 'done';
+  const hasAIResult = task.ai_result && task.ai_result.length > 0;
   
   return `
     <div class="task-card" draggable="true" data-task-id="${task.id}" data-column-id="${task.column_id}">
@@ -253,11 +255,26 @@ function renderTaskCard(task) {
       <div class="task-header">
         <span class="task-title">${escapeHtml(task.title)}</span>
         <div class="task-actions">
+          ${canExecuteAI ? `<button class="task-btn" onclick="executeTaskWithAI(${task.id})" title="Executar com IA">🤖</button>` : ''}
           <button class="task-btn" onclick="editTask(${task.id})" title="Editar">✏️</button>
           <button class="task-btn" onclick="deleteTask(${task.id})" title="Excluir">🗑️</button>
         </div>
       </div>
       ${task.description ? `<p style="font-size: 12px; color: #8b949e; margin-top: 4px;">${escapeHtml(task.description.substring(0, 100))}${task.description.length > 100 ? '...' : ''}</p>` : ''}
+      
+      ${hasAIResult ? `
+        <div class="ai-result-section" style="margin-top: 8px;">
+          <details>
+            <summary style="font-size: 11px; color: #23c55e; cursor: pointer; user-select: none;">
+              ✓ Executado por IA ${task.ai_cost_usd ? `(custo: $${Number(task.ai_cost_usd).toFixed(4)})` : ''}
+            </summary>
+            <div style="margin-top: 8px; padding: 8px; background: rgba(35, 197, 94, 0.1); border-radius: 4px; font-size: 12px; color: #c9d1d9; max-height: 150px; overflow-y: auto;">
+              ${escapeHtml(task.ai_result)}
+            </div>
+          </details>
+        </div>
+      ` : ''}
+      
       <div class="task-meta">
         <span class="task-badge badge-status-${task.status === 'in_progress' ? 'progress' : task.status}">
           ${getStatusLabel(task.status)}
@@ -268,7 +285,7 @@ function renderTaskCard(task) {
           </span>
         ` : ''}
         ${hasLLM ? `
-          <span class="task-badge badge-llm" onclick="window.open('/api/sessions/${task.session_id}', '_blank')" title="Abrir Sessão LLM">
+          <span class="task-badge badge-llm" title="Provider: ${escapeHtml(task.provider)}, Model: ${escapeHtml(task.model)}">
             🤖 ${escapeHtml(task.model)}
           </span>
         ` : ''}
@@ -333,6 +350,73 @@ async function deleteTask(taskId) {
     await loadTasks();
   } catch (error) {
     alert('Erro ao excluir tarefa: ' + error.message);
+  }
+}
+
+// ==================== AI EXECUTION ====================
+
+async function executeTaskWithAI(taskId) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) {
+    alert('Tarefa não encontrada');
+    return;
+  }
+  
+  if (!task.provider || !task.model) {
+    alert('Esta tarefa não possui configuração de LLM');
+    return;
+  }
+  
+  if (!task.description) {
+    alert('A tarefa precisa ter uma descrição para ser executada');
+    return;
+  }
+  
+  // Show loading on the card
+  const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
+  if (taskCard) {
+    taskCard.style.opacity = '0.6';
+  }
+  
+  try {
+    // Call LLM API
+    const response = await api('/api/llm/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        provider: task.provider,
+        model: task.model,
+        messages: [
+          { role: 'system', content: 'You execute tasks. Be concise and helpful.' },
+          { role: 'user', content: task.description }
+        ],
+        sessionId: task.session_id || undefined
+      })
+    });
+    
+    // Update task with AI result
+    await api(`/api/kanban/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        aiResult: response.content,
+        aiCostUsd: response.usage?.costUsd || 0,
+        status: 'done'
+      })
+    });
+    
+    // Reload tasks to show result
+    await loadTasks();
+    
+    // Show success notification
+    const cost = response.usage?.costUsd ? `$${response.usage.costUsd.toFixed(4)}` : 'N/A';
+    console.log(`✓ Tarefa executada com sucesso! Custo: ${cost}`);
+    
+  } catch (error) {
+    console.error('Error executing task with AI:', error);
+    alert('Erro ao executar com IA: ' + error.message);
+  } finally {
+    if (taskCard) {
+      taskCard.style.opacity = '1';
+    }
   }
 }
 

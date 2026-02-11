@@ -320,6 +320,19 @@ function updateTask(taskId, data) {
     params.push(data.model || null);
   }
   
+  if (data.aiResult !== undefined) {
+    updates.push('ai_result = ?');
+    params.push(data.aiResult || null);
+    if (data.aiResult && !task.ai_result) {
+      logs.push({ action: 'ai_execution', old: null, new: 'AI result generated' });
+    }
+  }
+  
+  if (data.aiCostUsd !== undefined) {
+    updates.push('ai_cost_usd = ?');
+    params.push(data.aiCostUsd || 0);
+  }
+  
   if (updates.length === 0) {
     return task;
   }

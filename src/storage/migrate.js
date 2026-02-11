@@ -107,6 +107,8 @@ function createTables(db) {
       api_key_id INTEGER,
       provider TEXT,
       model TEXT,
+      ai_result TEXT DEFAULT NULL,
+      ai_cost_usd REAL DEFAULT 0,
       due_date INTEGER,
       position INTEGER NOT NULL,
       created_at INTEGER NOT NULL,
