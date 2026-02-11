@@ -1,353 +1,319 @@
-## OpenClaw Control
+# OpenClaw Control
 
-Backend Node.js + Express (CommonJS), com frontend estatico em `public/` e arquitetura em camadas, pronto para evolucao SaaS.
+<p align="center">
+  <img src="public/assets/background.jpg" width="800" alt="OpenClaw Control Dashboard">
+</p>
 
-## Requisitos
+<p align="center">
+  <strong>Dashboard e Gateway Inteligente para Gerenciamento de APIs LLM</strong>
+</p>
 
-- Node.js 20+
-- npm 10+
+<p align="center">
+  <a href="#recursos">Recursos</a> •
+  <a href="#instalação">Instalação</a> •
+  <a href="#primeiros-passos">Primeiros Passos</a> •
+  <a href="#documentação">Documentação</a>
+</p>
 
-## Estrutura
+---
 
-```text
-src/
-  server.js
-  config/
-    env.js
-    security.js
-  core/
-    auth/jwt.js
-    crypto/keyVault.js
-    rbac/requireRole.js
-    audit/audit.service.js
-    errors/httpError.js
-  storage/
-    sqlite.js
-    migrate.js
-  modules/
-    auth/
-      auth.routes.js
-      auth.service.js
-    keys/
-      keys.routes.js
-      keys.service.js
-    usage/
-      usage.routes.js
-      usage.service.js
-    system/
-      system.routes.js
-  middlewares/
-    requireAuth.js
-public/
-  index.html
-  styles.css
-  app.js
+## Visão Geral
+
+O **OpenClaw Control** é uma plataforma completa para gerenciamento, monitoramento e controle de uso de APIs de Inteligência Artificial (LLM). Projetado para desenvolvedores, equipes e organizações que precisam de controle total sobre seus consumos de API com interface visual moderna e intuitiva.
+
+### Por que OpenClaw Control?
+
+- 📊 **Visibilidade Total**: Acompanhe em tempo real o consumo e custos das suas APIs
+- 🔒 **Segurança de Dados**: Suas chaves API são criptografadas com AES-256-GCM
+- 💰 **Controle de Custos**: Defina limites diários e receba alertas antes de ultrapassar orçamentos
+- ⚡ **Integração Simples**: Suporte nativo para OpenAI, Anthropic, Google e mais
+- 🎨 **Interface Moderna**: Dashboard visual com indicadores de risco em tempo real
+
+---
+
+## Recursos
+
+### 🔐 Gerenciamento Seguro de API Keys
+
+- Armazenamento criptografado de chaves API (AES-256-GCM)
+- Suporte a múltiplos provedores: OpenAI, Anthropic, Google, OpenRouter
+- Nunca exibimos sua chave completa - apenas máscara (ex: `sk-...9xK1`)
+- Definição de chave padrão por provedor
+- Ativação/desativação rápida de chaves
+
+### 📊 Monitoramento em Tempo Real
+
+- **Dashboard Visual**: Barra de progresso mostrando consumo diário
+- **Indicadores de Risco**: Cores intuitivas (azul/vermelho/amarelo) baseadas no tempo até o limite
+- **Previsão Inteligente**: Calcule automaticamente quanto tempo falta para atingir o limite
+- **Atualização Automática**: Dados atualizados a cada 30 segundos
+
+### 💰 Controle de Gastos
+
+- **Limites Diários Configuráveis**: Defina orçamentos em USD para cada chave API
+- **Modos de Proteção**:
+  - **Off**: Sem limite (padrão)
+  - **Alert**: Aviso visual quando próximo do limite
+  - **Block**: Bloqueio automático ao atingir o limite (HTTP 402)
+- **Burn Rate**: Acompanhe a velocidade de consumo e previsão de esgotamento
+
+### 🤖 Gateway LLM Unificado
+
+- **Chat Completion**: Envie requisições padronizadas para qualquer provedor
+- **Streaming SSE**: Respostas em tempo real com Server-Sent Events
+- **Cálculo Automático de Custos**: Cada requisição calcula e registra o custo exato
+- **Histórico Completo**: Registro detalhado de todas as requisições com custos
+
+### 📈 Analytics e Relatórios
+
+- Resumo de uso por período
+- Breakdown por modelo (GPT-4, Claude, etc.)
+- Análise por sessão
+- Custos por chave API
+- Exportação de dados via API
+
+### 🛡️ Segurança e Auditoria
+
+- Autenticação JWT com tokens de curta duração
+- Sistema de roles (Admin, Operator, Viewer)
+- Log de auditoria completo para ações sensíveis
+- Rate limiting integrado
+- Proteção Helmet contra vulnerabilidades web
+
+---
+
+## Instalação
+
+### Requisitos
+
+- Windows 10/11
+- Node.js 20 ou superior
+- Git
+
+### Instalação Rápida (Windows)
+
+Execute este comando único no PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/wesleiandersonti/openclaw-control/main/install.ps1 | iex
 ```
 
-## Setup rapido
+O instalador irá:
+1. ✅ Verificar dependências (Node.js, Git)
+2. 📁 Criar diretório em `C:\OpenClawControl`
+3. 📥 Clonar o repositório
+4. 🔐 Gerar automaticamente chaves de segurança
+5. 📦 Instalar dependências
+6. 🚀 Criar atalho na Área de Trabalho
 
-1. Copie o arquivo de ambiente:
+### Instalação Manual
 
 ```bash
-copy .env.example .env
-```
+# Clone o repositório
+git clone https://github.com/wesleiandersonti/openclaw-control.git
+cd openclaw-control
 
-2. Instale dependencias:
-
-```bash
+# Instale dependências
 npm install
-```
 
-3. Suba a aplicacao:
+# Configure o ambiente
+copy .env.example .env
+# Edite o arquivo .env e configure sua senha de admin
 
-```bash
+# Inicie o servidor
 npm start
 ```
 
-Aplicacao: `http://localhost:7000`
+Acesse: `http://localhost:7000`
 
-Health check: `GET http://localhost:7000/api/health`
+---
 
-## Variaveis de ambiente
+## Primeiros Passos
 
-Use o `.env.example` como base:
+### 1. Configurar Senha de Administrador
 
-```env
-PORT=7000
-JWT_ACCESS_SECRET=...
-JWT_REFRESH_SECRET=...
-JWT_ACCESS_TTL_MIN=15
-JWT_REFRESH_TTL_DAYS=7
-KEY_ENC_MASTER_B64=...
-DB_PATH=./data/app.db
-ADMIN_USER=admin
-ADMIN_PASS_HASH=...
-OPENCLAW_URL=http://127.0.0.1:18789
-CORS_ORIGIN=http://localhost:7000
-```
-
-## Como gerar `KEY_ENC_MASTER_B64`
+Edite o arquivo `.env` e adicione um hash bcrypt da sua senha:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# No terminal PowerShell:
+node -e "require('bcrypt').hash('SuaSenhaSegura123!', 12).then(h => console.log(h))"
 ```
 
-## Como gerar `ADMIN_PASS_HASH` (bcrypt)
+Cole o resultado em `ADMIN_PASS_HASH=` no arquivo `.env`
+
+### 2. Acessar o Dashboard
+
+1. Acesse `http://localhost:7000`
+2. Faça login com usuário `admin` e sua senha configurada
+3. Você verá o **Card de Burn Rate** mostrando o consumo atual
+
+### 3. Adicionar Primeira Chave API
+
+1. Vá para "Gerenciar Chaves"
+2. Clique em "Nova Chave"
+3. Selecione o provedor (ex: OpenAI)
+4. Cole sua chave API
+5. Configure um limite diário (opcional, ex: $10.00)
+6. Escolha o modo de proteção: Alert ou Block
+
+### 4. Fazer Primeira Requisição
 
 ```bash
-node -e "require('bcrypt').hash('SuaSenhaForte123!', 12).then(h => console.log(h))"
-```
-
-## Login e uso com Bearer Token
-
-### cURL
-
-Login:
-
-```bash
-curl -X POST http://localhost:7000/api/auth/login \
+# Obter token de acesso
+TOKEN=$(curl -X POST http://localhost:7000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d "{\"user\":\"admin\",\"pass\":\"SuaSenhaForte123!\"}"
-```
+  -d '{"user":"admin","pass":"SuaSenhaSegura123!"}' | jq -r '.accessToken')
 
-Refresh:
-
-```bash
-curl -X POST http://localhost:7000/api/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d "{\"refreshToken\":\"SEU_REFRESH_TOKEN\"}"
-```
-
-Endpoint protegido:
-
-```bash
-curl http://localhost:7000/api/usage/summary \
-  -H "Authorization: Bearer SEU_ACCESS_TOKEN"
-```
-
-Logout (revoga refresh token):
-
-```bash
-curl -X POST http://localhost:7000/api/auth/logout \
-  -H "Content-Type: application/json" \
-  -d "{\"refreshToken\":\"SEU_REFRESH_TOKEN\"}"
-```
-
-### PowerShell (Invoke-RestMethod)
-
-Login:
-
-```powershell
-$login = Invoke-RestMethod -Method Post -Uri "http://localhost:7000/api/auth/login" `
-  -ContentType "application/json" `
-  -Body '{"user":"admin","pass":"SuaSenhaForte123!"}'
-
-$access = $login.accessToken
-$refresh = $login.refreshToken
-```
-
-Chamada autenticada:
-
-```powershell
-Invoke-RestMethod -Method Get -Uri "http://localhost:7000/api/usage/summary" `
-  -Headers @{ Authorization = "Bearer $access" }
-```
-
-Refresh:
-
-```powershell
-Invoke-RestMethod -Method Post -Uri "http://localhost:7000/api/auth/refresh" `
-  -ContentType "application/json" `
-  -Body (@{ refreshToken = $refresh } | ConvertTo-Json)
-```
-
-## Endpoints principais
-
-- `GET /api/health`
-- `GET /api/system/health` (protegido)
-- `POST /api/auth/login`
-- `POST /api/auth/refresh`
-- `POST /api/auth/logout`
-- `GET /api/keys`
-- `POST /api/keys`
-- `PATCH /api/keys/:id/toggle`
-- `DELETE /api/keys/:id`
-- `POST /api/keys/:id/default`
-- `POST /api/usage/record`
-- `GET /api/usage/summary?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/usage/per-model?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/usage/per-session?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/usage/per-key?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `POST /api/llm/chat` - Chat completion (protegido)
-- `POST /api/llm/chat/stream` - Chat streaming com SSE (protegido)
-- `GET /api/limits/burn-rate/:keyId` - Previsao de burn rate por API key (protegido)
-
-## Limites Diarios por API Key
-
-Configure limites de gasto diario por chave API com tres modos:
-
-- **off** (padrao): Sem limite
-- **alert**: Alerta quando o limite e excedido, mas permite a requisicao
-- **block**: Bloqueia requisicoes quando o limite e excedido (HTTP 402)
-
-### Criar chave com limite
-
-```bash
-curl -X POST http://localhost:7000/api/keys \
-  -H "Authorization: Bearer SEU_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "provider": "openai",
-    "apiKey": "sk-...",
-    "name": "Production Key",
-    "dailyLimitUsd": 10.00,
-    "limitMode": "block"
-  }'
-```
-
-Modos validos: `off`, `alert`, `block`
-
-### Resposta com alerta de limite (modo alert)
-
-```json
-{
-  "content": "Resposta do modelo...",
-  "usage": {
-    "costUsd": 0.0025,
-    "totalTokens": 150
-  },
-  "limitWarning": {
-    "message": "Daily limit warning. Limit: $10.0000, Used: $10.5231",
-    "todayCost": 10.5231,
-    "dailyLimitUsd": 10.0
-  }
-}
-```
-
-### Erro de limite excedido (modo block)
-
-```json
-{
-  "error": "Daily limit exceeded. Limit: $10.0000, Used: $10.5231"
-}
-```
-
-Status HTTP: `402 Payment Required`
-
-### Previsao de Burn Rate (Taxa de Consumo)
-
-Monitore a velocidade de consumo da API key e estimativa de tempo ate atingir o limite diario.
-
-**Endpoint:** `GET /api/limits/burn-rate/:keyId`
-
-```bash
-curl http://localhost:7000/api/limits/burn-rate/1 \
-  -H "Authorization: Bearer SEU_ACCESS_TOKEN"
-```
-
-**Resposta:**
-
-```json
-{
-  "todayCost": 5.2341,
-  "dailyLimit": 10.0,
-  "burnRateUsdPerHour": 2.50,
-  "estimatedHoursToLimit": 1.91,
-  "safe": false,
-  "level": "danger",
-  "limitMode": "block"
-}
-```
-
-**Niveis de alerta:**
-- `normal` - Mais de 3 horas ate o limite (`safe: true`)
-- `warning` - Entre 1 e 3 horas ate o limite (`safe: true`)
-- `danger` - Menos de 1 hora ate o limite (`safe: false`)
-
-**Campos:**
-- `todayCost` - Gasto total de hoje
-- `dailyLimit` - Limite diario configurado
-- `burnRateUsdPerHour` - Taxa de consumo na ultima hora (USD/hora)
-- `estimatedHoursToLimit` - Horas estimadas ate atingir o limite (`null` se burnRate = 0)
-- `safe` - Indica se esta seguro (`true`/`false`)
-- `level` - Nivel de alerta (`normal`/`warning`/`danger`)
-- `limitMode` - Modo de limite configurado (`off`/`alert`/`block`)
-
-**Notas:**
-- Se nao houver consumo na ultima hora (`burnRate = 0`), `estimatedHoursToLimit` sera `null` e `safe` sera `true`
-- Se o limite diario nao estiver configurado (`limitMode = 'off'`), `dailyLimit` sera `null`
-
-## Streaming (SSE)
-
-O endpoint `POST /api/llm/chat/stream` retorna Server-Sent Events em tempo real.
-
-### Eventos SSE
-
-- `event: delta` - Chunk de texto incremental
-- `event: done` - Resposta completa com usage e cost
-- `event: error` - Erro durante o streaming
-
-### Exemplo curl
-
-```bash
-curl -X POST http://localhost:7000/api/llm/chat/stream \
-  -H "Authorization: Bearer SEU_ACCESS_TOKEN" \
+# Enviar mensagem para o LLM
+curl -X POST http://localhost:7000/api/llm/chat \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "provider": "openai",
     "model": "gpt-4o-mini",
     "messages": [
-      {"role": "user", "content": "Conte uma historia curta"}
-    ],
-    "sessionId": "sess-123"
-  }' \
-  --no-buffer
+      {"role": "user", "content": "Olá, como vai?"}
+    ]
+  }'
 ```
 
-### Exemplo JavaScript (EventSource)
+---
+
+## Documentação
+
+### Endpoints Principais
+
+| Endpoint | Descrição | Acesso |
+|----------|-----------|--------|
+| `GET /api/health` | Status do sistema | Público |
+| `POST /api/auth/login` | Autenticação | Público |
+| `GET /api/keys` | Listar chaves API | Autenticado |
+| `POST /api/keys` | Criar nova chave | Admin |
+| `GET /api/limits/burn-rate/:id` | Previsão de consumo | Operator+ |
+| `POST /api/llm/chat` | Chat completion | Operator+ |
+| `POST /api/llm/chat/stream` | Streaming SSE | Operator+ |
+
+### Exemplos de Uso
+
+#### Ver Burn Rate (Previsão de Consumo)
+
+```bash
+curl http://localhost:7000/api/limits/burn-rate/1 \
+  -H "Authorization: Bearer SEU_TOKEN"
+```
+
+**Resposta:**
+```json
+{
+  "todayCost": 5.23,
+  "dailyLimit": 10.00,
+  "burnRateUsdPerHour": 2.50,
+  "estimatedHoursToLimit": 1.91,
+  "safe": false,
+  "level": "danger"
+}
+```
+
+#### Streaming com EventSource (JavaScript)
 
 ```javascript
 const evtSource = new EventSource('/api/llm/chat/stream', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer SEU_ACCESS_TOKEN',
+    'Authorization': 'Bearer SEU_TOKEN',
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
     provider: 'openai',
     model: 'gpt-4o-mini',
-    messages: [{ role: 'user', content: 'Ola!' }]
+    messages: [{ role: 'user', content: 'Conte uma historia' }]
   })
 });
 
-let fullText = '';
-
 evtSource.addEventListener('delta', (e) => {
   const data = JSON.parse(e.data);
-  fullText += data.text;
-  console.log('Chunk:', data.text);
+  console.log('Chunk:', data.text); // Texto incremental
 });
 
 evtSource.addEventListener('done', (e) => {
   const data = JSON.parse(e.data);
-  console.log('Total tokens:', data.usage.totalTokens);
-  console.log('Cost USD:', data.usage.costUsd);
-  evtSource.close();
-});
-
-evtSource.addEventListener('error', (e) => {
-  console.error('Erro:', e.data);
+  console.log('Total custo:', data.usage.costUsd);
   evtSource.close();
 });
 ```
 
-### Notas PowerShell
+---
 
-PowerShell nao lida bem com SSE. Use curl ou um cliente JavaScript para streaming.
+## Interface Visual
 
-## Notas
+### Dashboard Principal
 
-- As API keys sao armazenadas com AES-256-GCM.
-- O sistema nunca retorna a chave completa; apenas `maskedKey`.
-- Acoes sensiveis de API keys geram evento em `audit_log`.
-- O frontend permanece em `public/` sem build e sem alteracao visual.
+O dashboard apresenta:
+
+- **Card de Burn Rate**: Barra de progresso colorida mostrando:
+  - 🔵 **Azul**: Consumo normal (>3h até o limite)
+  - 🟡 **Amarelo**: Atenção (1-3h até o limite)
+  - 🔴 **Vermelho**: Crítico (<1h até o limite)
+  - Tempo estimado até atingir o limite
+  - Percentual de uso do orçamento diário
+
+- **Status do Sistema**: Indicador visual se o gateway está online
+- **Login Seguro**: Interface de autenticação JWT
+
+### Cores e Indicadores
+
+| Cor | Significado | Ação Recomendada |
+|-----|-------------|------------------|
+| 🟢 Verde | Sistema online | - |
+| 🔵 Azul | Consumo normal | Continue monitorando |
+| 🟡 Amarelo | Alerta de consumo | Considere ajustar uso |
+| 🔴 Vermelho | Limite próximo | Reduza requisições ou aumente limite |
+
+---
+
+## Segurança
+
+- ✅ **Criptografia**: Chaves API armazenadas com AES-256-GCM
+- ✅ **Autenticação**: JWT com refresh tokens e expiração curta (15 min)
+- ✅ **Rate Limiting**: Proteção contra ataques de força bruta
+- ✅ **Helmet**: Headers de segurança HTTP
+- ✅ **Auditoria**: Log completo de ações administrativas
+- ✅ **Variáveis Sensíveis**: Configurações em arquivo `.env` separado
+
+---
+
+## Suporte
+
+### Provedores Suportados
+
+- ✅ **OpenAI** (GPT-4, GPT-3.5, etc.)
+- ✅ **Anthropic** (Claude 3 Opus, Sonnet, Haiku)
+- ✅ **Google** (Gemini Pro, Gemini Ultra)
+- ✅ **OpenRouter** (Acesso unificado a múltiplos modelos)
+- ✅ **Custom** (Provedores compatíveis com OpenAI)
+
+### Sistemas Operacionais
+
+- ✅ Windows 10/11 (recomendado)
+- ✅ Linux (via instalação manual)
+- ✅ macOS (via instalação manual)
+
+---
+
+## Contribuição
+
+Contribuições são bem-vindas! Por favor, abra uma issue para discutir mudanças grandes antes de enviar um PR.
+
+## Licença
+
+MIT License - veja o arquivo [LICENSE](LICENSE) para detalhes.
+
+---
+
+<p align="center">
+  <strong>Feito por Weslei Anderson</strong> <span style="color: #ff4d6d;">❤️</span>
+</p>
+
+<p align="center">
+  <sub>Versão 0.1.0</sub>
+</p>
