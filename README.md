@@ -181,6 +181,58 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:7000/api/auth/refresh" `
 - `POST /api/llm/chat` - Chat completion (protegido)
 - `POST /api/llm/chat/stream` - Chat streaming com SSE (protegido)
 
+## Limites Diarios por API Key
+
+Configure limites de gasto diario por chave API com tres modos:
+
+- **off** (padrao): Sem limite
+- **alert**: Alerta quando o limite e excedido, mas permite a requisicao
+- **block**: Bloqueia requisicoes quando o limite e excedido (HTTP 402)
+
+### Criar chave com limite
+
+```bash
+curl -X POST http://localhost:7000/api/keys \
+  -H "Authorization: Bearer SEU_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "openai",
+    "apiKey": "sk-...",
+    "name": "Production Key",
+    "dailyLimitUsd": 10.00,
+    "limitMode": "block"
+  }'
+```
+
+Modos validos: `off`, `alert`, `block`
+
+### Resposta com alerta de limite (modo alert)
+
+```json
+{
+  "content": "Resposta do modelo...",
+  "usage": {
+    "costUsd": 0.0025,
+    "totalTokens": 150
+  },
+  "limitWarning": {
+    "message": "Daily limit warning. Limit: $10.0000, Used: $10.5231",
+    "todayCost": 10.5231,
+    "dailyLimitUsd": 10.0
+  }
+}
+```
+
+### Erro de limite excedido (modo block)
+
+```json
+{
+  "error": "Daily limit exceeded. Limit: $10.0000, Used: $10.5231"
+}
+```
+
+Status HTTP: `402 Payment Required`
+
 ## Streaming (SSE)
 
 O endpoint `POST /api/llm/chat/stream` retorna Server-Sent Events em tempo real.

@@ -37,6 +37,8 @@ function createTables(db) {
       key_hash TEXT NOT NULL UNIQUE,
       is_active INTEGER NOT NULL DEFAULT 1,
       is_default INTEGER NOT NULL DEFAULT 0,
+      daily_limit_usd REAL DEFAULT NULL,
+      limit_mode TEXT DEFAULT 'off' CHECK(limit_mode IN ('off', 'alert', 'block')),
       created_by TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))

@@ -2,6 +2,7 @@ const { getDb } = require('../../storage/sqlite');
 const { encryptSecret, decryptSecret, hashValue, maskKey } = require('../../core/crypto/keyVault');
 const { writeAuditLog } = require('../../core/audit/audit.service');
 const { HttpError } = require('../../core/errors/httpError');
+const { validateLimitMode, validateDailyLimit } = require('../limits/limits.service');
 
 const SUPPORTED_PROVIDERS = ['openai', 'anthropic', 'google', 'openrouter', 'custom'];
 
@@ -57,6 +58,8 @@ function mapKey(row) {
     maskedKey: row.maskedKey,
     isActive: Boolean(row.isActive),
     isDefault: Boolean(row.isDefault),
+    dailyLimitUsd: row.dailyLimitUsd !== null && row.dailyLimitUsd !== undefined ? Number(row.dailyLimitUsd) : null,
+    limitMode: row.limitMode || 'off',
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -74,6 +77,8 @@ function listKeys(providerFilter) {
       masked_key AS maskedKey,
       is_active AS isActive,
       is_default AS isDefault,
+      daily_limit_usd AS dailyLimitUsd,
+      limit_mode AS limitMode,
       created_by AS createdBy,
       created_at AS createdAt,
       updated_at AS updatedAt
@@ -95,6 +100,9 @@ function createKey(payload, actor) {
 
   const name = normalizeName(payload.name);
   const shouldSetDefault = toBoolean(payload.isDefault, false);
+  const dailyLimitUsd = validateDailyLimit(payload.dailyLimitUsd);
+  const limitMode = payload.limitMode ? validateLimitMode(payload.limitMode) : 'off';
+  
   const encrypted = encryptSecret(rawKey);
   const masked = maskKey(rawKey);
   const keyHash = hashValue(rawKey);
@@ -112,10 +120,12 @@ function createKey(payload, actor) {
         key_hash,
         is_active,
         is_default,
+        daily_limit_usd,
+        limit_mode,
         created_by,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?, datetime('now'), datetime('now'))
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, datetime('now'), datetime('now'))
     `);
 
     const result = insert.run(
@@ -126,6 +136,8 @@ function createKey(payload, actor) {
       encrypted.authTag,
       masked,
       keyHash,
+      dailyLimitUsd,
+      limitMode,
       actor.username
     );
 
@@ -144,7 +156,9 @@ function createKey(payload, actor) {
       targetId: String(keyId),
       metadata: {
         provider,
-        isDefault: shouldSetDefault
+        isDefault: shouldSetDefault,
+        dailyLimitUsd,
+        limitMode
       }
     });
 
@@ -175,6 +189,8 @@ function getKeyById(keyId) {
       masked_key AS maskedKey,
       is_active AS isActive,
       is_default AS isDefault,
+      daily_limit_usd AS dailyLimitUsd,
+      limit_mode AS limitMode,
       created_by AS createdBy,
       created_at AS createdAt,
       updated_at AS updatedAt
@@ -295,7 +311,9 @@ function getDefaultKeyWithSecret(provider) {
       auth_tag AS authTag,
       masked_key AS maskedKey,
       is_active AS isActive,
-      is_default AS isDefault
+      is_default AS isDefault,
+      daily_limit_usd AS dailyLimitUsd,
+      limit_mode AS limitMode
     FROM api_keys
     WHERE provider = ? AND is_active = 1 AND is_default = 1
     LIMIT 1
@@ -320,6 +338,8 @@ function getDefaultKeyWithSecret(provider) {
     maskedKey: key.maskedKey,
     isActive: Boolean(key.isActive),
     isDefault: Boolean(key.isDefault),
+    dailyLimitUsd: key.dailyLimitUsd !== null && key.dailyLimitUsd !== undefined ? Number(key.dailyLimitUsd) : null,
+    limitMode: key.limitMode || 'off',
   };
 }
 

@@ -2,6 +2,7 @@ const { getProvider, supportsStreaming } = require('../../connectors/provider.fa
 const { getDefaultKeyWithSecret } = require('../keys/keys.service');
 const { recordUsage } = require('../usage/usage.service');
 const { calculateCost } = require('./pricing');
+const { checkDailyLimit } = require('../limits/limits.service');
 const { HttpError } = require('../../core/errors/httpError');
 
 function normalizeProvider(provider) {
@@ -37,6 +38,9 @@ async function chatCompletion(params, actor) {
 
   const keyData = getDefaultKeyWithSecret(provider);
 
+  // Check daily limit before processing
+  const limitCheck = checkDailyLimit(keyData);
+
   const connector = getProvider(provider, keyData.apiKey);
 
   const result = await connector.chatCompletion({
@@ -58,7 +62,7 @@ async function chatCompletion(params, actor) {
     costUsd,
   }, actor);
 
-  return {
+  const response = {
     content: result.content,
     provider,
     model,
@@ -71,6 +75,17 @@ async function chatCompletion(params, actor) {
     sessionId,
     timestamp: new Date().toISOString(),
   };
+
+  // Include limit warning if applicable
+  if (limitCheck.warning) {
+    response.limitWarning = {
+      message: limitCheck.message,
+      todayCost: limitCheck.todayCost,
+      dailyLimitUsd: limitCheck.dailyLimitUsd,
+    };
+  }
+
+  return response;
 }
 
 async function chatStream(params, actor, onDelta) {
@@ -90,6 +105,10 @@ async function chatStream(params, actor, onDelta) {
   }
 
   const keyData = getDefaultKeyWithSecret(provider);
+
+  // Check daily limit before processing
+  const limitCheck = checkDailyLimit(keyData);
+
   const connector = getProvider(provider, keyData.apiKey);
 
   const result = await connector.chatStream({
@@ -112,7 +131,7 @@ async function chatStream(params, actor, onDelta) {
     costUsd,
   }, actor);
 
-  return {
+  const response = {
     content: result.content,
     provider,
     model,
@@ -126,6 +145,17 @@ async function chatStream(params, actor, onDelta) {
     sessionId,
     timestamp: new Date().toISOString(),
   };
+
+  // Include limit warning if applicable
+  if (limitCheck.warning) {
+    response.limitWarning = {
+      message: limitCheck.message,
+      todayCost: limitCheck.todayCost,
+      dailyLimitUsd: limitCheck.dailyLimitUsd,
+    };
+  }
+
+  return response;
 }
 
 module.exports = {
