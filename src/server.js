@@ -9,6 +9,7 @@ const keysRoutes = require('./modules/keys/keys.routes');
 const usageRoutes = require('./modules/usage/usage.routes');
 const systemRoutes = require('./modules/system/system.routes');
 const llmRoutes = require('./modules/llm/llm.routes');
+const kanbanRoutes = require('./modules/kanban/kanban.routes');
 
 function createApp() {
   const app = express();
@@ -25,6 +26,7 @@ function createApp() {
   app.use('/api', keysRoutes);
   app.use('/api', usageRoutes);
   app.use('/api', llmRoutes);
+  app.use('/api', kanbanRoutes);
 
   app.use('/api', (req, res) => {
     res.status(404).json({ error: 'not found' });

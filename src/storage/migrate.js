@@ -79,6 +79,56 @@ function createTables(db) {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_provider_default
       ON api_keys(provider)
       WHERE is_default = 1 AND is_active = 1;
+
+    CREATE TABLE IF NOT EXISTS kanban_boards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS kanban_columns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      board_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      FOREIGN KEY(board_id) REFERENCES kanban_boards(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS kanban_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      board_id INTEGER NOT NULL,
+      column_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high', 'critical')),
+      status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'done')),
+      session_id TEXT,
+      api_key_id INTEGER,
+      provider TEXT,
+      model TEXT,
+      due_date INTEGER,
+      position INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY(board_id) REFERENCES kanban_boards(id) ON DELETE CASCADE,
+      FOREIGN KEY(column_id) REFERENCES kanban_columns(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS kanban_task_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(task_id) REFERENCES kanban_tasks(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_kanban_columns_board ON kanban_columns(board_id);
+    CREATE INDEX IF NOT EXISTS idx_kanban_tasks_board ON kanban_tasks(board_id);
+    CREATE INDEX IF NOT EXISTS idx_kanban_tasks_column ON kanban_tasks(column_id);
+    CREATE INDEX IF NOT EXISTS idx_kanban_task_logs_task ON kanban_task_logs(task_id);
   `);
 }
 
