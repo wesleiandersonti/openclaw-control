@@ -10,6 +10,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$TotalSteps = 7
+$CurrentStep = 0
 
 # Cores para output
 $Green = "Green"
@@ -17,20 +19,26 @@ $Yellow = "Yellow"
 $Red = "Red"
 $Cyan = "Cyan"
 
+function Write-Step($Message) {
+    $CurrentStep++
+    Write-Host ""
+    Write-Host "[$CurrentStep/$TotalSteps] $Message" -ForegroundColor $Cyan
+}
+
 function Write-Info($Message) {
-    Write-Host $Message -ForegroundColor $Cyan
+    Write-Host "  → $Message" -ForegroundColor White
 }
 
 function Write-Success($Message) {
-    Write-Host "[OK] $Message" -ForegroundColor $Green
+    Write-Host "  ✓ $Message" -ForegroundColor $Green
 }
 
 function Write-Warning($Message) {
-    Write-Host "[!] $Message" -ForegroundColor $Yellow
+    Write-Host "  ! $Message" -ForegroundColor $Yellow
 }
 
 function Write-Error($Message) {
-    Write-Host "[ERRO] $Message" -ForegroundColor $Red
+    Write-Host "  ✗ $Message" -ForegroundColor $Red
 }
 
 function Test-NodeVersion {
@@ -40,7 +48,6 @@ function Test-NodeVersion {
             return $false
         }
         
-        # Extrai versão major (ex: v20.10.0 -> 20)
         $versionMatch = $nodeVersion -match 'v(\d+)'
         if ($versionMatch) {
             $majorVersion = [int]$matches[1]
@@ -63,15 +70,21 @@ function Test-GitInstalled {
     }
 }
 
-function Generate-RandomString($Length = 64) {
-    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*-_+=<>?'
-    $random = New-Object System.Random
-    $result = -join ((1..$Length) | ForEach-Object { $chars[$random.Next($chars.Length)] })
+function Generate-SecureRandomString($Length = 64) {
+    # Cryptographically secure random string using RNG
+    $bytes = New-Object byte[] $Length
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($bytes)
+    $rng.Dispose()
+    
+    # Convert to alphanumeric string (base64 without special chars for compatibility)
+    $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    $result = -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
     return $result
 }
 
 function Generate-Base64Key {
-    # Gera 32 bytes aleatorios e converte para base64
+    # Generates 32 cryptographically secure random bytes and converts to base64
     $bytes = New-Object byte[] 32
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
     $rng.GetBytes($bytes)
@@ -80,13 +93,14 @@ function Generate-Base64Key {
 }
 
 function New-EnvFile($Path) {
-    $jwtAccess = Generate-RandomString -Length 64
-    $jwtRefresh = Generate-RandomString -Length 64
+    $jwtAccess = Generate-SecureRandomString -Length 64
+    $jwtRefresh = Generate-SecureRandomString -Length 64
     $masterKey = Generate-Base64Key
     
     $envContent = @"
 # OpenClaw Control - Configuracao Automatica
 # Gerado em: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+# NAO COMPARTILHE ESTE ARQUIVO
 
 PORT=7000
 JWT_ACCESS_SECRET=$jwtAccess
@@ -102,13 +116,12 @@ CORS_ORIGIN=http://localhost:7000
 "@
     
     $envContent | Out-File -FilePath $Path -Encoding UTF8 -Force
-    Write-Success "Arquivo .env criado com segredos gerados automaticamente"
 }
 
 function New-StartScript($Path) {
     $scriptContent = @'
 # OpenClaw Control - Script de Inicializacao
-# Uso: . start-control.ps1
+# Uso: .\start-control.ps1
 
 $ErrorActionPreference = "Stop"
 
@@ -126,7 +139,14 @@ catch {
 '@
     
     $scriptContent | Out-File -FilePath $Path -Encoding UTF8 -Force
-    Write-Success "Script start-control.ps1 criado"
+}
+
+function Get-SecurePassword {
+    $password = Read-Host "Digite a senha de administrador (sera criptografada)" -AsSecureString
+    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($password)
+    $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+    return $plainPassword
 }
 
 # ============================================================================
@@ -140,8 +160,14 @@ Write-Host @"
 ========================================
 "@ -ForegroundColor Cyan
 
-# 1. Verificar Node.js >= 20
-Write-Info "Verificando Node.js..."
+Write-Host ""
+Write-Host "Este instalador ira configurar o OpenClaw Control em seu sistema." -ForegroundColor White
+Write-Host "Requisitos: Windows 10/11, Node.js 20+, Git" -ForegroundColor Gray
+Write-Host ""
+
+# Step 1: Verificar Node.js >= 20
+Write-Step "Verificando Node.js..."
+Write-Info "Verificando versao do Node.js..."
 if (-not (Test-NodeVersion)) {
     Write-Error "Node.js 20+ nao encontrado!"
     Write-Host ""
@@ -154,8 +180,9 @@ if (-not (Test-NodeVersion)) {
 $nodeVer = node --version
 Write-Success "Node.js $nodeVer encontrado"
 
-# 2. Verificar Git
-Write-Info "Verificando Git..."
+# Step 2: Verificar Git
+Write-Step "Verificando Git..."
+Write-Info "Verificando instalacao do Git..."
 if (-not (Test-GitInstalled)) {
     Write-Error "Git nao encontrado!"
     Write-Host ""
@@ -164,10 +191,11 @@ if (-not (Test-GitInstalled)) {
     Write-Host ""
     exit 1
 }
-Write-Success "Git encontrado"
+$gitVer = (git --version).Split(' ')[2]
+Write-Success "Git $gitVer encontrado"
 
-# 3. Verificar/criar diretorio de instalacao
-Write-Info "Verificando diretorio de instalacao..."
+# Step 3: Verificar/criar diretorio de instalacao
+Write-Step "Preparando diretorio de instalacao..."
 if (Test-Path $InstallDir) {
     Write-Warning "Diretorio ja existe: $InstallDir"
     $response = Read-Host "Deseja sobrescrever? (S/N) [N]"
@@ -189,10 +217,10 @@ if (Test-Path $InstallDir) {
     }
 }
 
-# Criar diretorio
+Write-Info "Criando diretorio $InstallDir..."
 try {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-    Write-Success "Diretorio criado: $InstallDir"
+    Write-Success "Diretorio criado"
 }
 catch {
     Write-Error "Nao foi possivel criar o diretorio $InstallDir"
@@ -200,8 +228,9 @@ catch {
     exit 1
 }
 
-# 4. Clonar repositorio
-Write-Info "Clonando repositorio..."
+# Step 4: Clonar repositorio
+Write-Step "Baixando OpenClaw Control..."
+Write-Info "Clonando repositorio (isso pode levar alguns segundos)..."
 Set-Location $InstallDir
 
 try {
@@ -217,18 +246,21 @@ catch {
     exit 1
 }
 
-# 5. Gerar arquivo .env
-Write-Info "Gerando configuracao (.env)..."
+# Step 5: Gerar arquivo .env
+Write-Step "Configurando ambiente seguro..."
+Write-Info "Gerando chaves de seguranca (isso pode levar alguns segundos)..."
 New-EnvFile -Path "$InstallDir\.env"
+Write-Success "Arquivo .env criado com segredos gerados automaticamente"
 
-# 6. Instalar dependencias
-Write-Info "Instalando dependencias (npm install)..."
+# Step 6: Instalar dependencias
+Write-Step "Instalando dependencias..."
+Write-Info "Executando 'npm install' (isso pode levar 1-2 minutos)..."
 try {
     $npmOutput = npm install 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "npm install falhou"
     }
-    Write-Success "Dependencias instaladas"
+    Write-Success "Dependencias instaladas com sucesso"
 }
 catch {
     Write-Error "Falha ao instalar dependencias"
@@ -236,55 +268,67 @@ catch {
     exit 1
 }
 
-# 7. Criar script de inicializacao
+# Step 7: Criar script de inicializacao
+Write-Step "Finalizando instalacao..."
 Write-Info "Criando script de inicializacao..."
 New-StartScript -Path "$InstallDir\start-control.ps1"
+Write-Success "Script start-control.ps1 criado"
 
-# 8. Exibir resumo
+# Criar atalho no Desktop
+Write-Info "Criando atalho na Area de Trabalho..."
+try {
+    $WshShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\OpenClaw Control.lnk")
+    $Shortcut.TargetPath = "powershell.exe"
+    $Shortcut.Arguments = "-ExecutionPolicy Bypass -File `"$InstallDir\start-control.ps1`""
+    $Shortcut.WorkingDirectory = $InstallDir
+    $Shortcut.Description = "OpenClaw Control - Dashboard e Gateway LLM"
+    $Shortcut.Save()
+    Write-Success "Atalho criado na Area de Trabalho"
+}
+catch {
+    Write-Warning "Nao foi possivel criar o atalho (nao critico)"
+}
+
+# ============================================================================
+# RESUMO DA INSTALACAO
+# ============================================================================
+
 Clear-Host
 Write-Host @"
 ========================================
-   Instalacao Concluida!
+   Instalacao Concluida com Sucesso!
 ========================================
 "@ -ForegroundColor Green
 
-Write-Host "Diretorio de instalacao: " -NoNewline
-Write-Host $InstallDir -ForegroundColor Cyan
-
 Write-Host ""
-Write-Host "Proximos passos:" -ForegroundColor Yellow
-Write-Host "  1. Configure a senha do admin no arquivo .env"
-Write-Host "     Local: $InstallDir\.env"
-Write-Host ""
-Write-Host "  2. Para iniciar o servidor, execute:" -ForegroundColor Yellow
-Write-Host "     cd '$InstallDir'"
-Write-Host "     .\start-control.ps1"
-Write-Host "     ou"
-Write-Host "     npm start"
-Write-Host ""
-Write-Host "  3. Acesse no navegador:" -ForegroundColor Yellow
-Write-Host "     http://localhost:7000" -ForegroundColor Cyan
+Write-Host "Configuracao:" -ForegroundColor Yellow
+Write-Host "  Diretorio: $InstallDir" -ForegroundColor White
+Write-Host "  Banco de dados: $InstallDir\data\app.db" -ForegroundColor White
+Write-Host "  Configuracao: $InstallDir\.env" -ForegroundColor White
 Write-Host ""
 
-# Criar atalho no Desktop (opcional)
-$createShortcut = Read-Host "Deseja criar um atalho na Area de Trabalho? (S/N) [S]"
-if ($createShortcut -ne 'N') {
-    try {
-        $WshShell = New-Object -ComObject WScript.Shell
-        $Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\OpenClaw Control.lnk")
-        $Shortcut.TargetPath = "powershell.exe"
-        $Shortcut.Arguments = "-ExecutionPolicy Bypass -File `"$InstallDir\start-control.ps1`""
-        $Shortcut.WorkingDirectory = $InstallDir
-        $Shortcut.Description = "OpenClaw Control - Dashboard e Gateway LLM"
-        $Shortcut.Save()
-        Write-Success "Atalho criado na Area de Trabalho"
-    }
-    catch {
-        Write-Warning "Nao foi possivel criar o atalho"
-    }
-}
-
+Write-Host "IMPORTANTE:" -ForegroundColor Red -BackgroundColor Black
+Write-Host "  Antes de iniciar, configure a senha de administrador:" -ForegroundColor Yellow
+Write-Host "  1. Abra o arquivo: $InstallDir\.env" -ForegroundColor White
+Write-Host "  2. Localize a linha: ADMIN_PASS_HASH=" -ForegroundColor White
+Write-Host "  3. Execute este comando para gerar o hash:" -ForegroundColor White
+Write-Host "     node -e `"require('bcrypt').hash('SuaSenhaAqui', 12).then(h => console.log(h))`"" -ForegroundColor Cyan
+Write-Host "  4. Cole o resultado em ADMIN_PASS_HASH= -ForegroundColor White
 Write-Host ""
+
+Write-Host "Como iniciar:" -ForegroundColor Yellow
+Write-Host "  Opcao 1: Clique no atalho 'OpenClaw Control' na Area de Trabalho" -ForegroundColor White
+Write-Host "  Opcao 2: Execute: cd '$InstallDir'; .\start-control.ps1" -ForegroundColor White
+Write-Host "  Opcao 3: Execute: cd '$InstallDir'; npm start" -ForegroundColor White
+Write-Host ""
+
+Write-Host "Acesso:" -ForegroundColor Yellow
+Write-Host "  URL: http://localhost:7000" -ForegroundColor Cyan
+Write-Host "  Usuario: admin" -ForegroundColor White
+Write-Host "  Senha: (a que voce configurou no passo acima)" -ForegroundColor White
+Write-Host ""
+
 Write-Host "Obrigado por instalar o OpenClaw Control!" -ForegroundColor Green
 Write-Host ""
 
