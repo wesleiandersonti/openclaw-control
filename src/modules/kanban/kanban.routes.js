@@ -75,6 +75,17 @@ router.post('/kanban/columns', requireRole(['admin', 'operator']), (req, res, ne
   }
 });
 
+// PATCH /api/kanban/columns/:id - Atualizar coluna (nome, auto_execute)
+router.patch('/kanban/columns/:id', requireRole(['admin', 'operator']), (req, res, next) => {
+  try {
+    const id = parseId(req.params.id);
+    const column = kanbanService.updateColumn(id, req.body || {});
+    return res.json(column);
+  } catch (error) {
+    return next(error);
+  }
+});
+
 // PATCH /api/kanban/columns/:id/move - Mover coluna (atualizar position)
 router.patch('/kanban/columns/:id/move', requireRole(['admin', 'operator']), (req, res, next) => {
   try {
@@ -141,13 +152,13 @@ router.patch('/kanban/tasks/:id', requireRole(['admin', 'operator']), (req, res,
 });
 
 // PATCH /api/kanban/tasks/:id/move - Mover tarefa (atualizar column_id + position)
-router.patch('/kanban/tasks/:id/move', requireRole(['admin', 'operator']), (req, res, next) => {
+router.patch('/kanban/tasks/:id/move', requireRole(['admin', 'operator']), async (req, res, next) => {
   try {
     const id = parseId(req.params.id);
     if (req.body.position === undefined) {
       throw new HttpError(400, 'position is required');
     }
-    const task = kanbanService.moveTask(id, req.body.columnId, req.body.position);
+    const task = await kanbanService.moveTask(id, req.body.columnId, req.body.position, req.auth);
     return res.json(task);
   } catch (error) {
     return next(error);

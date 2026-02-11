@@ -1,5 +1,6 @@
 const { getDb } = require('../../storage/sqlite');
 const { HttpError } = require('../../core/errors/httpError');
+const llmService = require('../llm/llm.service');
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'];
 const VALID_STATUSES = ['open', 'in_progress', 'done'];
@@ -97,13 +98,53 @@ function createColumn(data) {
   `).get(data.boardId);
   
   const position = data.position !== undefined ? Number(data.position) : maxPosition.maxPos + 1;
+  const autoExecute = data.autoExecute ? 1 : 0;
   
   const result = db.prepare(`
-    INSERT INTO kanban_columns (board_id, name, position)
-    VALUES (?, ?, ?)
-  `).run(data.boardId, data.name.trim(), position);
+    INSERT INTO kanban_columns (board_id, name, position, auto_execute)
+    VALUES (?, ?, ?, ?)
+  `).run(data.boardId, data.name.trim(), position, autoExecute);
 
   return db.prepare('SELECT * FROM kanban_columns WHERE id = ?').get(result.lastInsertRowid);
+}
+
+function updateColumn(columnId, data) {
+  const db = getDb();
+  
+  const column = db.prepare('SELECT * FROM kanban_columns WHERE id = ?').get(columnId);
+  if (!column) {
+    throw new HttpError(404, 'column not found');
+  }
+  
+  const updates = [];
+  const params = [];
+  
+  if (data.name !== undefined) {
+    if (typeof data.name !== 'string' || data.name.trim().length === 0) {
+      throw new HttpError(400, 'name cannot be empty');
+    }
+    updates.push('name = ?');
+    params.push(data.name.trim());
+  }
+  
+  if (data.autoExecute !== undefined) {
+    updates.push('auto_execute = ?');
+    params.push(data.autoExecute ? 1 : 0);
+  }
+  
+  if (updates.length === 0) {
+    return column;
+  }
+  
+  params.push(columnId);
+  
+  db.prepare(`
+    UPDATE kanban_columns 
+    SET ${updates.join(', ')}
+    WHERE id = ?
+  `).run(...params);
+  
+  return db.prepare('SELECT * FROM kanban_columns WHERE id = ?').get(columnId);
 }
 
 function moveColumn(columnId, newPosition) {
@@ -354,7 +395,70 @@ function updateTask(taskId, data) {
   return getTaskById(taskId);
 }
 
-function moveTask(taskId, newColumnId, newPosition) {
+async function executeTaskAI(taskId, actor) {
+  const db = getDb();
+  const task = getTaskById(taskId);
+  
+  // Only execute if task has required fields
+  if (!task.provider || !task.model || !task.description) {
+    return { executed: false, reason: 'missing required fields' };
+  }
+  
+  try {
+    // Check daily limit
+    const { checkDailyLimit } = require('../limits/limits.service');
+    const { getDefaultKeyWithSecret } = require('../keys/keys.service');
+    const keyData = getDefaultKeyWithSecret(task.provider);
+    const limitCheck = checkDailyLimit(keyData);
+    
+    if (!limitCheck.allowed) {
+      return { executed: false, reason: 'daily limit exceeded' };
+    }
+    
+    // Execute LLM
+    const result = await llmService.chatCompletion({
+      provider: task.provider,
+      model: task.model,
+      messages: [
+        { role: 'system', content: 'You execute tasks. Be concise and helpful.' },
+        { role: 'user', content: task.description }
+      ],
+      sessionId: task.session_id
+    }, actor);
+    
+    // Update task with AI result
+    db.prepare(`
+      UPDATE kanban_tasks 
+      SET ai_result = ?, ai_cost_usd = ?, status = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      result.content,
+      result.usage?.costUsd || 0,
+      'done',
+      getTimestamp(),
+      taskId
+    );
+    
+    // Create log
+    createTaskLog(taskId, 'auto_ai_execution', null, JSON.stringify({ 
+      costUsd: result.usage?.costUsd || 0,
+      columnId: task.column_id 
+    }));
+    
+    return { 
+      executed: true, 
+      costUsd: result.usage?.costUsd || 0,
+      content: result.content
+    };
+    
+  } catch (error) {
+    console.error('[kanban] Auto AI execution failed:', error);
+    createTaskLog(taskId, 'auto_ai_execution_failed', null, error.message);
+    return { executed: false, reason: error.message };
+  }
+}
+
+async function moveTask(taskId, newColumnId, newPosition, actor) {
   const db = getDb();
   const task = getTaskById(taskId);
   
@@ -373,6 +477,12 @@ function moveTask(taskId, newColumnId, newPosition) {
       SET column_id = ?, position = ?, updated_at = ?
       WHERE id = ?
     `).run(newColumnId, Number(newPosition), getTimestamp(), taskId);
+    
+    // Check if target column has auto_execute enabled
+    if (column.auto_execute === 1 && task.column_id !== newColumnId) {
+      // Execute AI automatically
+      await executeTaskAI(taskId, actor || { username: 'system', role: 'system' });
+    }
   } else {
     db.prepare(`
       UPDATE kanban_tasks 
@@ -415,6 +525,7 @@ module.exports = {
   // Columns
   getColumnsByBoard,
   createColumn,
+  updateColumn,
   moveColumn,
   deleteColumn,
   
@@ -425,5 +536,8 @@ module.exports = {
   updateTask,
   moveTask,
   deleteTask,
-  getTaskLogs
+  getTaskLogs,
+  
+  // AI
+  executeTaskAI
 };

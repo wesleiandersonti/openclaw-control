@@ -172,7 +172,7 @@ async function loadColumns() {
   }
 }
 
-async function createColumn(name) {
+async function createColumn(name, autoExecute = false) {
   if (!currentBoardId) {
     alert('Selecione um board primeiro');
     return;
@@ -181,16 +181,60 @@ async function createColumn(name) {
   try {
     await api('/api/kanban/columns', {
       method: 'POST',
-      body: JSON.stringify({ boardId: currentBoardId, name })
+      body: JSON.stringify({ boardId: currentBoardId, name, autoExecute })
     });
     
     await loadColumns();
     await loadTasks();
     closeModal('columnModal');
     document.getElementById('columnForm').reset();
+    document.getElementById('columnId').value = '';
   } catch (error) {
     alert('Erro ao criar coluna: ' + error.message);
   }
+}
+
+async function updateColumn(columnId, name, autoExecute) {
+  try {
+    await api(`/api/kanban/columns/${columnId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, autoExecute })
+    });
+    
+    await loadColumns();
+    closeModal('columnModal');
+    document.getElementById('columnForm').reset();
+    document.getElementById('columnId').value = '';
+  } catch (error) {
+    alert('Erro ao atualizar coluna: ' + error.message);
+  }
+}
+
+function openColumnModal(columnId = null) {
+  const modalTitle = document.getElementById('columnModalTitle');
+  const submitBtn = document.getElementById('columnSubmitBtn');
+  
+  if (columnId) {
+    const column = columns.find(c => c.id === columnId);
+    if (column) {
+      document.getElementById('columnId').value = column.id;
+      document.getElementById('columnName').value = column.name;
+      document.getElementById('columnAutoExecute').checked = column.auto_execute === 1;
+      modalTitle.textContent = 'Editar Coluna';
+      submitBtn.textContent = 'Salvar';
+    }
+  } else {
+    document.getElementById('columnForm').reset();
+    document.getElementById('columnId').value = '';
+    modalTitle.textContent = 'Nova Coluna';
+    submitBtn.textContent = 'Criar';
+  }
+  
+  openModal('columnModal');
+}
+
+function editColumn(columnId) {
+  openColumnModal(columnId);
 }
 
 function renderColumns() {
@@ -207,8 +251,14 @@ function renderColumns() {
     
     columnEl.innerHTML = `
       <div class="column-header">
-        <span class="column-title">${escapeHtml(column.name)}</span>
-        <span class="column-count">${columnTasks.length}</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="column-title">${escapeHtml(column.name)}</span>
+          ${column.auto_execute ? '<span class="column-badge" title="Execução automática com IA">⚡</span>' : ''}
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="column-count">${columnTasks.length}</span>
+          <button class="task-btn" onclick="editColumn(${column.id})" title="Configurar coluna">⚙️</button>
+        </div>
       </div>
       <div class="column-tasks" data-column-id="${column.id}">
         ${columnTasks.map(task => renderTaskCard(task)).join('')}
@@ -597,7 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Selecione um board primeiro');
       return;
     }
-    openModal('columnModal');
+    openColumnModal();
   });
   
   // Logout button
@@ -635,9 +685,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Column form
   document.getElementById('columnForm').addEventListener('submit', (e) => {
     e.preventDefault();
+    const columnId = document.getElementById('columnId').value;
     const name = document.getElementById('columnName').value.trim();
+    const autoExecute = document.getElementById('columnAutoExecute').checked;
+    
     if (name) {
-      createColumn(name);
+      if (columnId) {
+        updateColumn(Number(columnId), name, autoExecute);
+      } else {
+        createColumn(name, autoExecute);
+      }
     }
   });
   

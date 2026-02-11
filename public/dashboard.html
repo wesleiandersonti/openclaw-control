@@ -149,18 +149,29 @@
   <div id="columnModal" class="modal hidden">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h3>Nova Coluna</h3>
+        <h3 id="columnModalTitle">Nova Coluna</h3>
         <button class="modal-close" data-close="columnModal">&times;</button>
       </div>
       <form id="columnForm">
+        <input type="hidden" id="columnId">
         <div class="form-group">
           <label for="columnName">Nome da Coluna</label>
           <input type="text" id="columnName" required placeholder="A Fazer, Em Progresso...">
         </div>
         
+        <div class="form-group">
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="columnAutoExecute" style="width: auto;">
+            <span>⚡ Execução automática com IA</span>
+          </label>
+          <small style="color: #8b949e; margin-top: 4px; display: block;">
+            Quando ativada, tarefas movidas para esta coluna serão executadas automaticamente via LLM
+          </small>
+        </div>
+        
         <div class="modal-footer">
           <button type="button" class="btn-secondary" data-close="columnModal">Cancelar</button>
-          <button type="submit" class="btn-primary">Criar</button>
+          <button type="submit" class="btn-primary" id="columnSubmitBtn">Criar</button>
         </div>
       </form>
     </div>

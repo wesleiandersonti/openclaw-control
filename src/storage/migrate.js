@@ -92,6 +92,7 @@ function createTables(db) {
       board_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       position INTEGER NOT NULL,
+      auto_execute INTEGER DEFAULT 0,
       FOREIGN KEY(board_id) REFERENCES kanban_boards(id) ON DELETE CASCADE
     );
 
