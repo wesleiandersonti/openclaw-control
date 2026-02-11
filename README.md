@@ -180,6 +180,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:7000/api/auth/refresh" `
 - `GET /api/usage/per-key?from=YYYY-MM-DD&to=YYYY-MM-DD`
 - `POST /api/llm/chat` - Chat completion (protegido)
 - `POST /api/llm/chat/stream` - Chat streaming com SSE (protegido)
+- `GET /api/limits/burn-rate/:keyId` - Previsao de burn rate por API key (protegido)
 
 ## Limites Diarios por API Key
 
@@ -232,6 +233,49 @@ Modos validos: `off`, `alert`, `block`
 ```
 
 Status HTTP: `402 Payment Required`
+
+### Previsao de Burn Rate (Taxa de Consumo)
+
+Monitore a velocidade de consumo da API key e estimativa de tempo ate atingir o limite diario.
+
+**Endpoint:** `GET /api/limits/burn-rate/:keyId`
+
+```bash
+curl http://localhost:7000/api/limits/burn-rate/1 \
+  -H "Authorization: Bearer SEU_ACCESS_TOKEN"
+```
+
+**Resposta:**
+
+```json
+{
+  "todayCost": 5.2341,
+  "dailyLimit": 10.0,
+  "burnRateUsdPerHour": 2.50,
+  "estimatedHoursToLimit": 1.91,
+  "safe": false,
+  "level": "danger",
+  "limitMode": "block"
+}
+```
+
+**Niveis de alerta:**
+- `normal` - Mais de 3 horas ate o limite (`safe: true`)
+- `warning` - Entre 1 e 3 horas ate o limite (`safe: true`)
+- `danger` - Menos de 1 hora ate o limite (`safe: false`)
+
+**Campos:**
+- `todayCost` - Gasto total de hoje
+- `dailyLimit` - Limite diario configurado
+- `burnRateUsdPerHour` - Taxa de consumo na ultima hora (USD/hora)
+- `estimatedHoursToLimit` - Horas estimadas ate atingir o limite (`null` se burnRate = 0)
+- `safe` - Indica se esta seguro (`true`/`false`)
+- `level` - Nivel de alerta (`normal`/`warning`/`danger`)
+- `limitMode` - Modo de limite configurado (`off`/`alert`/`block`)
+
+**Notas:**
+- Se nao houver consumo na ultima hora (`burnRate = 0`), `estimatedHoursToLimit` sera `null` e `safe` sera `true`
+- Se o limite diario nao estiver configurado (`limitMode = 'off'`), `dailyLimit` sera `null`
 
 ## Streaming (SSE)
 

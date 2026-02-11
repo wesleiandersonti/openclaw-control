@@ -3,6 +3,7 @@ const { requireAuth } = require('../../middlewares/requireAuth');
 const { requireRole } = require('../../core/rbac/requireRole');
 const { HttpError } = require('../../core/errors/httpError');
 const keysService = require('./keys.service');
+const { getBurnRate } = require('../limits/burnRate.service');
 
 const router = express.Router();
 
@@ -60,6 +61,16 @@ router.post('/keys/:id/default', requireRole(['admin']), (req, res, next) => {
     const id = parseId(req.params.id);
     const key = keysService.setDefaultKey(id, req.auth);
     return res.json(key);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/limits/burn-rate/:keyId', requireRole(['operator']), (req, res, next) => {
+  try {
+    const keyId = parseId(req.params.keyId);
+    const result = getBurnRate(keyId);
+    return res.json(result);
   } catch (error) {
     return next(error);
   }
