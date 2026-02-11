@@ -20,7 +20,20 @@ function listSupportedProviders() {
   return Object.keys(PROVIDERS);
 }
 
+function supportsStreaming(providerName) {
+  const normalizedName = String(providerName || '').trim().toLowerCase();
+  const ProviderClass = PROVIDERS[normalizedName];
+
+  if (!ProviderClass) {
+    return false;
+  }
+
+  const prototype = ProviderClass.prototype;
+  return typeof prototype.chatStream === 'function';
+}
+
 module.exports = {
   getProvider,
   listSupportedProviders,
+  supportsStreaming,
 };

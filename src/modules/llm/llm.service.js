@@ -1,4 +1,4 @@
-const { getProvider } = require('../../connectors/provider.factory');
+const { getProvider, supportsStreaming } = require('../../connectors/provider.factory');
 const { getDefaultKeyWithSecret } = require('../keys/keys.service');
 const { recordUsage } = require('../usage/usage.service');
 const { calculateCost } = require('./pricing');
@@ -73,6 +73,62 @@ async function chatCompletion(params, actor) {
   };
 }
 
+async function chatStream(params, actor, onDelta) {
+  const provider = normalizeProvider(params.provider || 'openai');
+  const model = params.model;
+  const messages = params.messages;
+  const sessionId = params.sessionId || null;
+
+  if (!model) {
+    throw new HttpError(400, 'model is required');
+  }
+
+  validateMessages(messages);
+
+  if (!supportsStreaming(provider)) {
+    throw new HttpError(400, 'stream_not_supported');
+  }
+
+  const keyData = getDefaultKeyWithSecret(provider);
+  const connector = getProvider(provider, keyData.apiKey);
+
+  const result = await connector.chatStream({
+    model,
+    messages,
+    temperature: params.temperature,
+    maxTokens: params.maxTokens,
+    onDelta,
+  });
+
+  const costUsd = calculateCost(provider, model, result.inputTokens, result.outputTokens);
+
+  recordUsage({
+    provider,
+    model,
+    sessionId,
+    apiKeyId: keyData.id,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
+    costUsd,
+  }, actor);
+
+  return {
+    content: result.content,
+    provider,
+    model,
+    usage: {
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      totalTokens: result.inputTokens + result.outputTokens,
+      costUsd,
+      usageEstimated: result.usageEstimated || false,
+    },
+    sessionId,
+    timestamp: new Date().toISOString(),
+  };
+}
+
 module.exports = {
   chatCompletion,
+  chatStream,
 };

@@ -178,6 +178,76 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:7000/api/auth/refresh" `
 - `GET /api/usage/per-model?from=YYYY-MM-DD&to=YYYY-MM-DD`
 - `GET /api/usage/per-session?from=YYYY-MM-DD&to=YYYY-MM-DD`
 - `GET /api/usage/per-key?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `POST /api/llm/chat` - Chat completion (protegido)
+- `POST /api/llm/chat/stream` - Chat streaming com SSE (protegido)
+
+## Streaming (SSE)
+
+O endpoint `POST /api/llm/chat/stream` retorna Server-Sent Events em tempo real.
+
+### Eventos SSE
+
+- `event: delta` - Chunk de texto incremental
+- `event: done` - Resposta completa com usage e cost
+- `event: error` - Erro durante o streaming
+
+### Exemplo curl
+
+```bash
+curl -X POST http://localhost:7000/api/llm/chat/stream \
+  -H "Authorization: Bearer SEU_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "messages": [
+      {"role": "user", "content": "Conte uma historia curta"}
+    ],
+    "sessionId": "sess-123"
+  }' \
+  --no-buffer
+```
+
+### Exemplo JavaScript (EventSource)
+
+```javascript
+const evtSource = new EventSource('/api/llm/chat/stream', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer SEU_ACCESS_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: 'Ola!' }]
+  })
+});
+
+let fullText = '';
+
+evtSource.addEventListener('delta', (e) => {
+  const data = JSON.parse(e.data);
+  fullText += data.text;
+  console.log('Chunk:', data.text);
+});
+
+evtSource.addEventListener('done', (e) => {
+  const data = JSON.parse(e.data);
+  console.log('Total tokens:', data.usage.totalTokens);
+  console.log('Cost USD:', data.usage.costUsd);
+  evtSource.close();
+});
+
+evtSource.addEventListener('error', (e) => {
+  console.error('Erro:', e.data);
+  evtSource.close();
+});
+```
+
+### Notas PowerShell
+
+PowerShell nao lida bem com SSE. Use curl ou um cliente JavaScript para streaming.
 
 ## Notas
 
