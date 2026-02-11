@@ -1,0 +1,15 @@
+{
+  "name": "openclaw-control",
+  "version": "0.1.0",
+  "description": "Dashboard e agente de controle para OpenClaw com autenticação, i18n, Kanban e controle de serviços",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "Weslei Anderson",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
