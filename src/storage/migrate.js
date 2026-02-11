@@ -132,6 +132,19 @@ function createTables(db) {
     CREATE INDEX IF NOT EXISTS idx_kanban_tasks_board ON kanban_tasks(board_id);
     CREATE INDEX IF NOT EXISTS idx_kanban_tasks_column ON kanban_tasks(column_id);
     CREATE INDEX IF NOT EXISTS idx_kanban_task_logs_task ON kanban_task_logs(task_id);
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      status TEXT CHECK(status IN ('active','paused','completed')) DEFAULT 'active',
+      budget_usd REAL DEFAULT NULL,
+      created_at INTEGER NOT NULL,
+      closed_at INTEGER
+    );
+
+    ALTER TABLE kanban_boards ADD COLUMN project_id INTEGER REFERENCES projects(id);
+    CREATE INDEX IF NOT EXISTS idx_kanban_boards_project ON kanban_boards(project_id);
   `);
 }
 

@@ -1,0 +1,547 @@
+/* ===================================================
+   PROJECTS PAGE STYLES
+   =================================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: #0d1117;
+  color: #c9d1d9;
+  display: flex;
+  min-height: 100vh;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ===================================================
+   SIDEBAR
+   =================================================== */
+
+.sidebar {
+  width: 240px;
+  background: rgba(22, 27, 34, 0.95);
+  border-right: 1px solid rgba(48, 54, 61, 0.6);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 100;
+}
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  font-size: 28px;
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #58a6ff, #a371f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 0;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  color: #8b949e;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: rgba(48, 54, 61, 0.4);
+  color: #f0f6fc;
+}
+
+.nav-item.active {
+  background: rgba(88, 166, 255, 0.1);
+  color: #58a6ff;
+  border-left: 3px solid #58a6ff;
+}
+
+.nav-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid rgba(48, 54, 61, 0.6);
+}
+
+.btn-logout {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  border-radius: 8px;
+  color: #f85149;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-logout:hover {
+  background: rgba(248, 81, 73, 0.1);
+}
+
+/* ===================================================
+   MAIN CONTENT
+   =================================================== */
+
+.main-content {
+  flex: 1;
+  margin-left: 240px;
+  padding: 24px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  color: #f0f6fc;
+}
+
+/* ===================================================
+   BUTTONS
+   =================================================== */
+
+.btn-primary {
+  padding: 10px 20px;
+  background: #238636;
+  border: 1px solid rgba(35, 134, 54, 0.4);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #2ea043;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid rgba(48, 54, 61, 0.6);
+  border-radius: 8px;
+  color: #c9d1d9;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: rgba(48, 54, 61, 0.4);
+}
+
+/* ===================================================
+   FILTERS
+   =================================================== */
+
+.filters {
+  margin-bottom: 24px;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-group label {
+  font-size: 14px;
+  color: #8b949e;
+}
+
+.filter-group select {
+  padding: 8px 12px;
+  background: rgba(22, 27, 34, 0.8);
+  border: 1px solid rgba(48, 54, 61, 0.6);
+  border-radius: 6px;
+  color: #f0f6fc;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ===================================================
+   PROJECTS GRID
+   =================================================== */
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.project-card {
+  background: rgba(22, 27, 34, 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(48, 54, 61, 0.4);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.project-card:hover {
+  border-color: rgba(88, 166, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.project-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f0f6fc;
+}
+
+.project-status {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.status-active {
+  background: rgba(35, 197, 94, 0.15);
+  color: #23c55e;
+}
+
+.status-paused {
+  background: rgba(242, 194, 76, 0.15);
+  color: #f2c24c;
+}
+
+.status-completed {
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+}
+
+.project-description {
+  font-size: 14px;
+  color: #8b949e;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+/* ===================================================
+   PROJECT STATS
+   =================================================== */
+
+.project-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(13, 17, 23, 0.8);
+  border-radius: 8px;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #f0f6fc;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #8b949e;
+  text-transform: uppercase;
+}
+
+/* ===================================================
+   BUDGET BAR
+   =================================================== */
+
+.budget-section {
+  margin-bottom: 16px;
+}
+
+.budget-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #8b949e;
+  margin-bottom: 6px;
+}
+
+.budget-bar {
+  height: 8px;
+  background: rgba(48, 54, 61, 0.6);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.budget-progress {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.budget-progress.low {
+  background: #23c55e;
+}
+
+.budget-progress.medium {
+  background: #f2c24c;
+}
+
+.budget-progress.high {
+  background: #f85149;
+}
+
+/* ===================================================
+   PROJECT ACTIONS
+   =================================================== */
+
+.project-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-action {
+  flex: 1;
+  min-width: 100px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.btn-kanban {
+  background: rgba(88, 166, 255, 0.1);
+  border-color: rgba(88, 166, 255, 0.4);
+  color: #58a6ff;
+}
+
+.btn-kanban:hover {
+  background: rgba(88, 166, 255, 0.2);
+}
+
+.btn-pause {
+  background: rgba(242, 194, 76, 0.1);
+  border-color: rgba(242, 194, 76, 0.4);
+  color: #f2c24c;
+}
+
+.btn-pause:hover {
+  background: rgba(242, 194, 76, 0.2);
+}
+
+.btn-complete {
+  background: rgba(35, 197, 94, 0.1);
+  border-color: rgba(35, 197, 94, 0.4);
+  color: #23c55e;
+}
+
+.btn-complete:hover {
+  background: rgba(35, 197, 94, 0.2);
+}
+
+/* ===================================================
+   MODAL
+   =================================================== */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: rgba(22, 27, 34, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(48, 54, 61, 0.6);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.modal-header {
+  padding: 20px;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f0f6fc;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #8b949e;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.modal-close:hover {
+  color: #f0f6fc;
+}
+
+.modal form {
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #8b949e;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(13, 17, 23, 0.8);
+  border: 1px solid rgba(48, 54, 61, 0.6);
+  border-radius: 8px;
+  color: #f0f6fc;
+  font-size: 14px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 20px;
+  border-top: 1px solid rgba(48, 54, 61, 0.4);
+}
+
+/* ===================================================
+   LOADING
+   =================================================== */
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 17, 23, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 3000;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(48, 54, 61, 0.6);
+  border-top-color: #58a6ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===================================================
+   RESPONSIVE
+   =================================================== */
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 60px;
+  }
+  
+  .brand,
+  .nav-item span:not(.nav-icon),
+  .btn-logout span:last-child {
+    display: none;
+  }
+  
+  .main-content {
+    margin-left: 60px;
+  }
+  
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+}

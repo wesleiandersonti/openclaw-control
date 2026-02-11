@@ -1,6 +1,7 @@
 const { getDb } = require('../../storage/sqlite');
 const { HttpError } = require('../../core/errors/httpError');
 const llmService = require('../llm/llm.service');
+const projectsService = require('../projects/projects.service');
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'];
 const VALID_STATUSES = ['open', 'in_progress', 'done'];
@@ -46,11 +47,19 @@ function createBoard(data) {
   if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
     throw new HttpError(400, 'name is required');
   }
+  
+  // Check project status if projectId is provided
+  if (data.projectId) {
+    const projectStatus = projectsService.checkProjectStatus(data.projectId);
+    if (projectStatus.isCompleted) {
+      throw new HttpError(403, 'cannot create board in a completed project');
+    }
+  }
 
   const result = db.prepare(`
-    INSERT INTO kanban_boards (name, description, created_at)
-    VALUES (?, ?, ?)
-  `).run(data.name.trim(), data.description || null, getTimestamp());
+    INSERT INTO kanban_boards (name, description, project_id, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(data.name.trim(), data.description || null, data.projectId || null, getTimestamp());
 
   return getBoardById(result.lastInsertRowid);
 }
@@ -244,7 +253,15 @@ function createTask(data) {
     throw new HttpError(400, 'columnId is required');
   }
   
-  getBoardById(data.boardId);
+  const board = getBoardById(data.boardId);
+  
+  // Check project status if board belongs to a project
+  if (board.project_id) {
+    const projectStatus = projectsService.checkProjectStatus(board.project_id);
+    if (projectStatus.isCompleted) {
+      throw new HttpError(403, 'cannot create tasks in a completed project');
+    }
+  }
   
   const column = db.prepare('SELECT * FROM kanban_columns WHERE id = ? AND board_id = ?').get(data.columnId, data.boardId);
   if (!column) {
@@ -402,6 +419,18 @@ async function executeTaskAI(taskId, actor) {
   // Only execute if task has required fields
   if (!task.provider || !task.model || !task.description) {
     return { executed: false, reason: 'missing required fields' };
+  }
+  
+  // Check project status
+  const projectId = projectsService.getProjectIdByBoard(task.board_id);
+  if (projectId) {
+    const projectStatus = projectsService.checkProjectStatus(projectId);
+    if (projectStatus.isPaused) {
+      throw new HttpError(403, 'project is paused - AI execution blocked');
+    }
+    if (projectStatus.isCompleted) {
+      throw new HttpError(403, 'project is completed - AI execution blocked');
+    }
   }
   
   try {
