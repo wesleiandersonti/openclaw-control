@@ -5,28 +5,51 @@
   <title>OpenClaw Control</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
+
 <body>
 
-<div id="loginContainer" class="card">
-  <h2>Login</h2>
-  <input id="user" placeholder="Usuário" />
-  <input id="pass" type="password" placeholder="Senha" />
-  <button onclick="login()">Entrar</button>
-  <p id="error"></p>
+<canvas id="particles"></canvas>
+
+<div class="hero fade-in">
+
+  <div class="mascot-wrapper">
+    <div class="mascot-glow"></div>
+    <div class="mascot">🦞</div>
+  </div>
+
+  <h1 class="brand">OpenClaw</h1>
+
+  <p class="tagline">
+  Sistema de Controle Inteligente
+</p>
+
+<p class="tagline-sub">
+  Automação • Execução • Monitoramento em tempo real
+</p>
+
+
+
+  <div id="loginContainer" class="card">
+
+    <div id="gatewayStatus" class="status">
+      Verificando sistema...
+    </div>
+
+    <input id="user" placeholder="Usuário" />
+    <input id="pass" type="password" placeholder="Senha" />
+    <button onclick="login()">Entrar</button>
+    <p id="error" class="error"></p>
+
+  </div>
+
 </div>
 
-<div id="dashboard" class="hidden">
-  <header>
-    <h1>OpenClaw Control</h1>
-    <button onclick="logout()">Sair</button>
-  </header>
-
-  <main>
-    <h2>Área Administrativa</h2>
-    <p>Login realizado com sucesso.</p>
-  </main>
-</div>
+<footer class="footer">
+  Feito por Weslei Anderson <span class="heart">❤️</span>
+  <div class="version">v0.1.0</div>
+</footer>
 
 <script src="/app.js"></script>
+
 </body>
 </html>

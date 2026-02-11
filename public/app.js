@@ -22,3 +22,18 @@ async function logout() {
   await fetch('/api/logout', { method: 'POST' });
   location.reload();
 }
+async function checkGateway() {
+  try {
+    const res = await fetch('/api/health');
+    const data = await res.json();
+    if (data.status === 'ok') {
+      document.getElementById('gatewayStatus').innerText = "🟢 Sistema Online";
+      document.getElementById('gatewayStatus').style.color = "#4cd137";
+    }
+  } catch {
+    document.getElementById('gatewayStatus').innerText = "🔴 Sistema Offline";
+    document.getElementById('gatewayStatus').style.color = "#ff4d6d";
+  }
+}
+
+checkGateway();
