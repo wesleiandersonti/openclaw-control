@@ -19,11 +19,25 @@ function requireAuth(req, res, next) {
 
   try {
     const payload = verifyAccessToken(token);
+    
+    // Support both legacy and new format
     req.auth = {
       userId: payload.sub,
-      username: payload.username,
-      role: payload.role || 'viewer'
+      username: payload.username || payload.email,
+      email: payload.email,
+      orgId: payload.orgId,
+      role: payload.role || 'viewer',
+      workspaceId: payload.workspaceId || null
     };
+    
+    // Set workspace from header if provided and not in token
+    const workspaceHeader = req.headers['x-workspace-id'];
+    if (workspaceHeader && !req.auth.workspaceId) {
+      req.auth.workspaceId = workspaceHeader;
+    }
+    
+    // Make workspaceId available on req for convenience
+    req.workspaceId = req.auth.workspaceId;
 
     return next();
   } catch (error) {

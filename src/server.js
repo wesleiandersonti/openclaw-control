@@ -11,6 +11,7 @@ const systemRoutes = require('./modules/system/system.routes');
 const llmRoutes = require('./modules/llm/llm.routes');
 const kanbanRoutes = require('./modules/kanban/kanban.routes');
 const projectsRoutes = require('./modules/projects/projects.routes');
+const identityRoutes = require('./modules/identity/identity.routes');
 
 function createApp() {
   const app = express();
@@ -23,6 +24,7 @@ function createApp() {
   app.use(express.static(path.resolve(__dirname, '../public')));
 
   app.use('/api', systemRoutes);
+  app.use('/api', identityRoutes); // Enterprise identity (must be before authRoutes for /login)
   app.use('/api', authRoutes);
   app.use('/api', keysRoutes);
   app.use('/api', usageRoutes);
