@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Control - Projetos</title>
+  <link rel="stylesheet" href="/projects.css">
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="logo">🦞</span>
+      <span class="brand">OpenClaw</span>
+    </div>
+    
+    <nav class="sidebar-nav">
+      <a href="/dashboard.html" class="nav-item">
+        <span class="nav-icon">📊</span>
+        <span>Dashboard</span>
+      </a>
+      <a href="/projects.html" class="nav-item active">
+        <span class="nav-icon">📁</span>
+        <span>Projetos</span>
+      </a>
+      <a href="/dashboard.html" class="nav-item">
+        <span class="nav-icon">📋</span>
+        <span>Kanban</span>
+      </a>
+      <a href="#" class="nav-item" onclick="alert('Em desenvolvimento')">
+        <span class="nav-icon">💰</span>
+        <span>Custos</span>
+      </a>
+      <a href="#" class="nav-item" onclick="alert('Em desenvolvimento')">
+        <span class="nav-icon">🔑</span>
+        <span>API Keys</span>
+      </a>
+      <a href="#" class="nav-item" onclick="alert('Em desenvolvimento')">
+        <span class="nav-icon">⚙️</span>
+        <span>Sistema</span>
+      </a>
+    </nav>
+    
+    <div class="sidebar-footer">
+      <button id="logoutBtn" class="btn-logout">
+        <span>🚪</span>
+        <span>Sair</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1>Projetos</h1>
+      <button id="newProjectBtn" class="btn-primary">
+        <span>+</span>
+        <span>Novo Projeto</span>
+      </button>
+    </header>
+
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-group">
+        <label>Status:</label>
+        <select id="statusFilter">
+          <option value="">Todos</option>
+          <option value="active">Ativo</option>
+          <option value="paused">Pausado</option>
+          <option value="completed">Concluído</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Projects Grid -->
+    <div id="projectsGrid" class="projects-grid">
+      <!-- Projects will be loaded here -->
+    </div>
+  </main>
+
+  <!-- Modal: New/Edit Project -->
+  <div id="projectModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">Novo Projeto</h3>
+        <button class="modal-close" data-close="projectModal">&times;</button>
+      </div>
+      <form id="projectForm">
+        <input type="hidden" id="projectId">
+        
+        <div class="form-group">
+          <label for="projectName">Nome do Projeto</label>
+          <input type="text" id="projectName" required placeholder="Meu Projeto">
+        </div>
+        
+        <div class="form-group">
+          <label for="projectDescription">Descrição</label>
+          <textarea id="projectDescription" rows="2" placeholder="Descrição opcional"></textarea>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="projectBudget">Orçamento (USD)</label>
+            <input type="number" id="projectBudget" step="0.01" min="0" placeholder="Opcional">
+          </div>
+          
+          <div class="form-group">
+            <label for="projectStatus">Status</label>
+            <select id="projectStatus">
+              <option value="active">Ativo</option>
+              <option value="paused">Pausado</option>
+              <option value="completed">Concluído</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" data-close="projectModal">Cancelar</button>
+          <button type="submit" class="btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-spinner"></div>
+    <span>Carregando...</span>
+  </div>
+
+  <script src="/projects.js"></script>
+</body>
+</html>

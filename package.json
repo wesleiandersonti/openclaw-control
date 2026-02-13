@@ -1,0 +1,24 @@
+{
+  "name": "openclaw-control",
+  "version": "0.1.0",
+  "description": "Dashboard e agente de controle para OpenClaw com autenticação, i18n, Kanban e controle de serviços",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "author": "Weslei Anderson",
+  "license": "MIT",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.4.1",
+    "dotenv": "^17.2.4",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "openai": "^4.80.0",
+    "pg": "^8.13.0"
+  }
+}

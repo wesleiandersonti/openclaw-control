@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Control - Dashboard Kanban</title>
+  <link rel="stylesheet" href="/kanban.css">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="logo">🦞</span>
+      <span class="brand-name">OpenClaw</span>
+    </div>
+    <div class="nav-center">
+      <select id="boardSelector" class="board-select">
+        <option value="">Selecionar Board...</option>
+      </select>
+      <button id="newBoardBtn" class="btn-icon" title="Novo Board">+</button>
+    </div>
+    <div class="nav-actions">
+      <button id="logoutBtn" class="btn-logout">Sair</button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div id="boardContainer" class="board-container">
+      <div id="columnsContainer" class="columns-container">
+        <!-- Colunas serão carregadas dinamicamente -->
+      </div>
+      
+      <button id="newColumnBtn" class="btn-new-column">
+        <span>+</span>
+        <span>Nova Coluna</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- Modal: Nova Tarefa -->
+  <div id="taskModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">Nova Tarefa</h3>
+        <button class="modal-close" data-close="taskModal">&times;</button>
+      </div>
+      <form id="taskForm">
+        <input type="hidden" id="taskId">
+        <input type="hidden" id="taskColumnId">
+        
+        <div class="form-group">
+          <label for="taskTitle">Título</label>
+          <input type="text" id="taskTitle" required placeholder="Nome da tarefa...">
+        </div>
+        
+        <div class="form-group">
+          <label for="taskDescription">Descrição</label>
+          <textarea id="taskDescription" rows="3" placeholder="Descrição opcional..."></textarea>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="taskPriority">Prioridade</label>
+            <select id="taskPriority">
+              <option value="low">Baixa</option>
+              <option value="medium" selected>Média</option>
+              <option value="high">Alta</option>
+              <option value="critical">Crítica</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="taskStatus">Status</label>
+            <select id="taskStatus">
+              <option value="open" selected>Aberto</option>
+              <option value="in_progress">Em Progresso</option>
+              <option value="done">Concluído</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="taskDueDate">Data de Vencimento</label>
+          <input type="datetime-local" id="taskDueDate">
+        </div>
+        
+        <div class="form-section">
+          <h4>Integração LLM (Opcional)</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="taskProvider">Provider</label>
+              <select id="taskProvider">
+                <option value="">-</option>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="google">Google</option>
+                <option value="openrouter">OpenRouter</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="taskModel">Modelo</label>
+              <input type="text" id="taskModel" placeholder="gpt-4, claude-3...">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="taskSessionId">Session ID</label>
+            <input type="text" id="taskSessionId" placeholder="ID da sessão...">
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" data-close="taskModal">Cancelar</button>
+          <button type="submit" class="btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Novo Board -->
+  <div id="boardModal" class="modal hidden">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h3>Novo Board</h3>
+        <button class="modal-close" data-close="boardModal">&times;</button>
+      </div>
+      <form id="boardForm">
+        <div class="form-group">
+          <label for="boardName">Nome do Board</label>
+          <input type="text" id="boardName" required placeholder="Meu Projeto...">
+        </div>
+        
+        <div class="form-group">
+          <label for="boardDescription">Descrição</label>
+          <textarea id="boardDescription" rows="2" placeholder="Descrição opcional..."></textarea>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" data-close="boardModal">Cancelar</button>
+          <button type="submit" class="btn-primary">Criar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Nova Coluna -->
+  <div id="columnModal" class="modal hidden">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h3 id="columnModalTitle">Nova Coluna</h3>
+        <button class="modal-close" data-close="columnModal">&times;</button>
+      </div>
+      <form id="columnForm">
+        <input type="hidden" id="columnId">
+        <div class="form-group">
+          <label for="columnName">Nome da Coluna</label>
+          <input type="text" id="columnName" required placeholder="A Fazer, Em Progresso...">
+        </div>
+        
+        <div class="form-group">
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="columnAutoExecute" style="width: auto;">
+            <span>⚡ Execução automática com IA</span>
+          </label>
+          <small style="color: #8b949e; margin-top: 4px; display: block;">
+            Quando ativada, tarefas movidas para esta coluna serão executadas automaticamente via LLM
+          </small>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" data-close="columnModal">Cancelar</button>
+          <button type="submit" class="btn-primary" id="columnSubmitBtn">Criar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Overlay de loading -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-spinner"></div>
+    <span>Carregando...</span>
+  </div>
+
+  <script src="/kanban.js"></script>
+</body>
+</html>

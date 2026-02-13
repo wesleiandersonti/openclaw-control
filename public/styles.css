@@ -1,0 +1,385 @@
+/* ===================================================
+   BASE
+=================================================== */
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* ===================================================
+   FUNDO RESPONSIVO (IMAGEM)
+=================================================== */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("/assets/background.jpg");
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  z-index: -5;
+}
+
+/* ===================================================
+   ESTRELAS ANIMADAS
+=================================================== */
+
+.stars-overlay {
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(white 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.08;
+  animation: moveStars 60s linear infinite;
+  z-index: -4;
+  pointer-events: none;
+}
+
+@keyframes moveStars {
+  from { transform: translateY(0); }
+  to { transform: translateY(-200px); }
+}
+
+/* ===================================================
+   NEBULA OVERLAY
+=================================================== */
+
+.nebula-overlay {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(255,0,80,0.15), transparent 40%),
+    radial-gradient(circle at 70% 60%, rgba(0,200,255,0.15), transparent 40%);
+  z-index: -3;
+  pointer-events: none;
+}
+
+/* ===================================================
+   PARTICLES CANVAS
+=================================================== */
+
+#particles,
+#datastream {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+}
+
+/* ===================================================
+   HERO (CENTRALIZAÇÃO)
+=================================================== */
+
+.hero {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 20px;
+  max-width: 100%;
+}
+
+/* ===================================================
+   MASCOT
+=================================================== */
+
+.mascot-wrapper {
+  position: relative;
+}
+
+.mascot {
+  font-size: 70px;
+  margin-bottom: 10px;
+  animation: float 3s ease-in-out infinite;
+}
+
+.mascot-glow {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(255,0,80,0.6), transparent 70%);
+  filter: blur(40px);
+  z-index: -1;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
+}
+
+/* ===================================================
+   BRAND
+=================================================== */
+
+.brand {
+  font-size: 56px;
+  margin: 0;
+  font-weight: bold;
+  background: linear-gradient(
+    90deg,
+    #ff4d6d,
+    #ff8c42,
+    #00d4ff,
+    #ff4d6d
+  );
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientMove 6s ease infinite;
+  position: relative;
+}
+
+@keyframes gradientMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Brilho passando */
+.brand::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  left: -100%;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255,255,255,0.35),
+    transparent
+  );
+  animation: shine 4s infinite;
+}
+
+@keyframes shine {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* ===================================================
+   TAGLINE
+=================================================== */
+
+.tagline {
+  margin-top: 20px;
+  font-size: 22px;
+  font-weight: 600;
+  color: #00d4ff;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.tagline-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #9aa6b2;
+}
+
+/* ===================================================
+   CARD LOGIN
+=================================================== */
+
+.card {
+  margin-top: 30px;
+  background: rgba(20, 25, 35, 0.9);
+  backdrop-filter: blur(12px);
+  padding: 30px;
+  border-radius: 16px;
+  width: min(360px, 92vw);
+  box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  animation: loginEntrance 0.8s ease forwards;
+  animation-delay: 0.6s;
+  opacity: 0;
+  transform: scale(0.85);
+}
+
+@keyframes loginEntrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.status {
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+/* ===================================================
+   INPUTS
+=================================================== */
+
+input {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: none;
+  background: #121c29;
+  color: white;
+}
+
+button {
+  padding: 12px;
+  border: none;
+  background: #00d4ff;
+  color: black;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 100%;
+  font-weight: bold;
+}
+
+button:hover {
+  opacity: 0.85;
+}
+
+.error {
+  color: #ff6b6b;
+  margin-top: 10px;
+}
+
+/* ===================================================
+   FOOTER
+=================================================== */
+
+.footer {
+  position: fixed;
+  bottom: 15px;
+  width: 100%;
+  text-align: center;
+  font-size: 13px;
+  color: #9aa6b2;
+}
+
+.version {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.heart {
+  color: #ff4d6d;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* ===================================================
+   UTILITARIOS
+=================================================== */
+
+.hidden {
+  display: none !important;
+}
+
+/* ===================================================
+   BURN RATE CARD
+=================================================== */
+
+.burn-card {
+  background: rgba(20, 25, 35, 0.85);
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  border-radius: 12px;
+  width: 320px;
+  box-shadow: 0 0 25px rgba(0,0,0,0.4);
+  margin: 20px auto;
+  text-align: left;
+  color: white;
+}
+
+.burn-card h3 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  color: #00d4ff;
+}
+
+#burn-values {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+.burn-bar {
+  width: 100%;
+  height: 12px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+
+.burn-progress {
+  height: 100%;
+  width: 0%;
+  background: #00d4ff;
+  transition: width 0.6s ease, background 0.3s ease;
+}
+
+.burn-meta {
+  font-size: 13px;
+  margin-top: 8px;
+  color: #9aa6b2;
+}
+
+/* ===================================================
+   DASHBOARD
+=================================================== */
+
+#dashboard {
+  margin-top: 30px;
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===================================================
+   RESPONSIVO
+=================================================== */
+
+@media (max-width: 768px) {
+  body::before {
+    background-attachment: scroll;
+    background-position: center top;
+  }
+
+  .brand {
+    font-size: 38px;
+  }
+
+  .tagline {
+    font-size: 16px;
+  }
+
+  .burn-card {
+    width: 280px;
+    padding: 16px;
+  }
+}
