@@ -505,42 +505,83 @@ else {
     Install-NewApplication
 }
 
-# Resumo
-Write-Header "Instalação Concluída!"
-
-Write-Host "Diretório: " -NoNewline
-Write-Host $ProjectRoot -ForegroundColor $Cyan
+# ============================================================================
+# RESULTADO FINAL - SEMPRE MOSTRAR
+# ============================================================================
 
 Write-Host ""
-Write-Host "Status do Serviço:"
-if (Test-ServiceExists) {
-    $svc = Get-Service -Name $ServiceName
-    Write-Host "  Nome: $ServiceName"
-    Write-Host "  Status: $($svc.Status)" -ForegroundColor $(if ($svc.Status -eq 'Running') { $Green } else { $Yellow })
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  RESULTADO DA OPERACAO" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
+
+if ($isUpdate) {
+    Write-Host "✓ Modo: ATUALIZACAO" -ForegroundColor Green
+    Write-Host "✓ Status: Concluido com sucesso" -ForegroundColor Green
+}
+else {
+    Write-Host "✓ Modo: INSTALACAO NOVA" -ForegroundColor Green
+    Write-Host "✓ Status: Concluido com sucesso" -ForegroundColor Green
 }
 
 Write-Host ""
-Write-Host "Comandos úteis:"
-Write-Host "  Iniciar:    Start-Service $ServiceName"
-Write-Host "  Parar:      Stop-Service $ServiceName"
-Write-Host "  Status:     Get-Service $ServiceName"
-Write-Host "  Logs:       Get-Content '$LogDir\stdout.log' -Tail 50"
-Write-Host "  Acesso:     http://localhost:7000" -ForegroundColor $Cyan
+Write-Host "INFORMACOES DE ACESSO:" -ForegroundColor Cyan
+Write-Host "----------------------------------------"
+Write-Host "  URL:        http://localhost:7000" -ForegroundColor Green
+Write-Host "  Diretorio:  $ProjectRoot" -ForegroundColor White
+
+Write-Host ""
+Write-Host "STATUS DO SERVICO:" -ForegroundColor Cyan
+Write-Host "----------------------------------------"
+if (Test-ServiceExists) {
+    $svc = Get-Service -Name $ServiceName
+    Write-Host "  Nome:       $ServiceName"
+    Write-Host "  Status:     $($svc.Status)" -ForegroundColor $(if ($svc.Status -eq 'Running') { $Green } else { $Yellow })
+    
+    # Testar se esta respondendo
+    try {
+        $response = Invoke-WebRequest -Uri "http://localhost:7000/api/health" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+        if ($response.StatusCode -eq 200) {
+            Write-Host "  Health:     ONLINE ✓" -ForegroundColor Green
+        }
+    }
+    catch {
+        Write-Host "  Health:     Iniciando... (aguarde 10s)" -ForegroundColor Yellow
+    }
+}
+else {
+    Write-Host "  Status:     Servico nao criado" -ForegroundColor Yellow
+}
+
+Write-Host ""
+Write-Host "COMANDOS UTEIS:" -ForegroundColor Cyan
+Write-Host "----------------------------------------"
+Write-Host "  Acessar:           http://localhost:7000" -ForegroundColor Green
+Write-Host "  Ver logs:          Get-Content '$LogDir\stdout.log' -Tail 50"
+Write-Host "  Iniciar servico:   Start-Service $ServiceName"
+Write-Host "  Parar servico:     Stop-Service $ServiceName"
+Write-Host "  Ver status:        Get-Service $ServiceName"
+Write-Host "  Atualizar:         cd $ProjectRoot; .\install.ps1"
 
 if (-not $isUpdate) {
     Write-Host ""
-    Write-Host "⚠️  IMPORTANTE:" -ForegroundColor $Yellow
-    Write-Host "Configure a senha do administrador no arquivo .env"
-    Write-Host "Local: $ProjectRoot\.env"
+    Write-Host "⚠️  PROXIMA ETAPA IMPORTANTE:" -ForegroundColor Yellow -BackgroundColor Black
+    Write-Host "  1. Configure a senha do admin no arquivo .env" -ForegroundColor Yellow
+    Write-Host "     Local: $ProjectRoot\.env" -ForegroundColor White
+    Write-Host "  2. Reinicie o servico: Restart-Service $ServiceName" -ForegroundColor Yellow
+    Write-Host "  3. Acesse: http://localhost:7000" -ForegroundColor Green
 }
 
 Write-Host ""
-Write-Host "To update in the future, run this script again." -ForegroundColor $Green
+Write-Host "========================================" -ForegroundColor Green
+
+# ============================================================================
+# PAUSAR - NUNCA FECHAR AUTOMATICAMENTE
+# ============================================================================
+
+Write-Host ""
+Write-Host "Pressione ENTER para fechar esta janela..." -ForegroundColor Yellow -BackgroundColor Black
 Write-Host ""
 
-# Keep PowerShell open when running via IEX
-if ($Host.Name -eq 'ConsoleHost') {
-    Write-Host ""
-    Write-Host "Press Enter to exit..." -ForegroundColor Yellow
-    Read-Host
-}
+# Forcar pause mesmo se estiver via IEX
+$Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
