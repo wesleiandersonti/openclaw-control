@@ -360,17 +360,20 @@ function Update-Application {
         exit 1
     }
     
-    # npm install
-    Write-Info "Atualizando dependências..."
+    # npm install - mostrar progresso
+    Write-Info "Atualizando dependencias (isso pode levar 2-3 minutos)..."
+    Write-Info "Aguarde, nao feche esta janela..."
     try {
-        npm install --production 2>&1 | Out-Null
+        npm install --production 2>&1 | ForEach-Object {
+            Write-Host "    $_" -ForegroundColor Gray
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "npm install falhou"
         }
-        Write-Success "Dependências atualizadas"
+        Write-Success "Dependencias atualizadas"
     }
     catch {
-        Write-Error "Falha ao atualizar dependências: $_"
+        Write-Error "Falha ao atualizar dependencias: $_"
         exit 1
     }
     
@@ -418,17 +421,20 @@ function Install-NewApplication {
         exit 1
     }
     
-    # npm install
-    Write-Info "Instalando dependências..."
+    # npm install - mostrar progresso
+    Write-Info "Instalando dependencias (isso pode levar 2-3 minutos)..."
+    Write-Info "Aguarde, nao feche esta janela..."
     try {
-        npm install --production 2>&1 | Out-Null
+        npm install --production 2>&1 | ForEach-Object {
+            Write-Host "    $_" -ForegroundColor Gray
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "npm install falhou"
         }
-        Write-Success "Dependências instaladas"
+        Write-Success "Dependencias instaladas"
     }
     catch {
-        Write-Error "Falha ao instalar dependências: $_"
+        Write-Error "Falha ao instalar dependencias: $_"
         exit 1
     }
     
