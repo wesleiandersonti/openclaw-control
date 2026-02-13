@@ -10,7 +10,23 @@ param(
     [switch]$SkipOpenClawCLI
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
+
+# Global error handler to show errors before window closes
+trap {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "  ERROR OCCURRED" -ForegroundColor Red
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Error: $_" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Line: $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Press Enter to exit..." -ForegroundColor Yellow
+    Read-Host
+    exit 1
+}
 
 # Configurações
 $ServiceName = "OpenClawControl"
@@ -519,5 +535,12 @@ if (-not $isUpdate) {
 }
 
 Write-Host ""
-Write-Host "Para atualizar no futuro, execute novamente este script." -ForegroundColor $Green
+Write-Host "To update in the future, run this script again." -ForegroundColor $Green
 Write-Host ""
+
+# Keep PowerShell open when running via IEX
+if ($Host.Name -eq 'ConsoleHost') {
+    Write-Host ""
+    Write-Host "Press Enter to exit..." -ForegroundColor Yellow
+    Read-Host
+}
