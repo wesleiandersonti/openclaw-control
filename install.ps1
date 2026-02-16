@@ -584,13 +584,44 @@ function Install-WindowsService {
     
     Write-Info "Criando novo servico $ServiceName..."
     
+    # Verify server.js exists
+    $serverJsPath = "$ProjectRoot\src\server.js"
+    if (-not (Test-Path $serverJsPath)) {
+        Write-Err "Arquivo server.js nao encontrado em: $serverJsPath"
+        Write-Info "Verificando estrutura do diretorio..."
+        
+        if (Test-Path $ProjectRoot) {
+            Write-Info "Conteudo de $ProjectRoot :"
+            Get-ChildItem $ProjectRoot | ForEach-Object {
+                Write-Host "  - $($_.Name)" -ForegroundColor Gray
+            }
+            
+            if (Test-Path "$ProjectRoot\src") {
+                Write-Info "Conteudo de $ProjectRoot\src :"
+                Get-ChildItem "$ProjectRoot\src" | ForEach-Object {
+                    Write-Host "  - $($_.Name)" -ForegroundColor Gray
+                }
+            }
+            else {
+                Write-Err "Diretorio src nao existe!"
+            }
+        }
+        else {
+            Write-Err "Diretorio do projeto nao existe!"
+        }
+        
+        return 'NotInstalled'
+    }
+    
+    Write-OK "Arquivo server.js encontrado"
+    
     # Create log directory
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
     
     $nodeExe = (Get-Command node).Source
     Write-Info "Node.js encontrado em: $nodeExe"
     Write-Info "Diretorio do projeto: $ProjectRoot"
-    Write-Info "Arquivo de entrada: $ProjectRoot\src\server.js"
+    Write-Info "Arquivo de entrada: $serverJsPath"
     
     try {
         # Install service using NSSM
