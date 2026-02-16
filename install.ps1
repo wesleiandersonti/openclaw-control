@@ -742,6 +742,20 @@ function Update-Application {
     }
     
     Write-OK "Atualizacao concluida com sucesso!"
+    
+    # Garantir que o servico exista (criar se nao existir)
+    if (-not (Test-ServiceExists)) {
+        Write-Warn "Servico nao encontrado apos update - Criando agora..."
+        Write-Info "Isso pode acontecer se a instalacao anterior falhou..."
+        $serviceStatus = Install-WindowsService
+        return $serviceStatus
+    }
+    
+    # Se servico ja existe, retornar status atual
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($svc) {
+        return $svc.Status
+    }
 }
 
 function Install-NewApplication($PasswordHash, $Secrets) {
@@ -853,8 +867,11 @@ try {
 
     # Execute installation or update
     if ($isUpdate) {
-        Update-Application
-        $serviceStatus = (Start-OpenClawService)
+        $serviceStatus = Update-Application
+        # Se Update-Application nao retornou status (servico ja existia), tentar iniciar
+        if (-not $serviceStatus) {
+            $serviceStatus = (Start-OpenClawService)
+        }
         Show-FinalResult -IsUpdate $true -ServiceStatus $serviceStatus
     }
     else {
