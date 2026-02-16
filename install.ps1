@@ -1,6 +1,6 @@
-# OpenClaw Control - Instalador Windows
-# Requisitos: Windows 10/11, Node.js 20+, Git
-# Uso: Execute como Administrador
+# OpenClaw Control - Windows Installer
+# Requirements: Windows 10/11, Node.js 20+, Git
+# Usage: Run as Administrator
 
 #Requires -Version 5.1
 
@@ -10,32 +10,19 @@ param(
     [switch]$SkipOpenClawCLI
 )
 
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Stop"
 
-# Global error handler to show errors before window closes
-trap {
-    Write-Host ""
-    Write-Host "========================================" -ForegroundColor Red
-    Write-Host "  ERROR OCCURRED" -ForegroundColor Red
-    Write-Host "========================================" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Error: $_" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Line: $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "Press Enter to exit..." -ForegroundColor Yellow
-    Read-Host
-    exit 1
-}
-
-# Configurações
+# Configurations
 $ServiceName = "OpenClawControl"
 $ProjectRoot = $InstallDir
 $LogDir = "$ProjectRoot\logs"
 $NSSMVersion = "2.24"
 $NSSMDownloadUrl = "https://nssm.cc/release/nssm-$NSSMVersion.zip"
 
-# Cores para output
+# Global variable for local IP
+$script:LocalIP = $null
+
+# Colors for output
 $Green = "Green"
 $Yellow = "Yellow"
 $Red = "Red"
@@ -43,19 +30,19 @@ $Cyan = "Cyan"
 $White = "White"
 
 function Write-Info($Message) {
-    Write-Host "  → $Message" -ForegroundColor $White
+    Write-Host "  [INFO] $Message" -ForegroundColor $White
 }
 
-function Write-Success($Message) {
-    Write-Host "  ✓ $Message" -ForegroundColor $Green
+function Write-OK($Message) {
+    Write-Host "  [OK] $Message" -ForegroundColor $Green
 }
 
-function Write-Warning($Message) {
-    Write-Host "  ! $Message" -ForegroundColor $Yellow
+function Write-Warn($Message) {
+    Write-Host "  [WARN] $Message" -ForegroundColor $Yellow
 }
 
-function Write-Error($Message) {
-    Write-Host "  ✗ $Message" -ForegroundColor $Red
+function Write-Err($Message) {
+    Write-Host "  [ERRO] $Message" -ForegroundColor $Red
 }
 
 function Write-Header($Message) {
@@ -67,7 +54,257 @@ function Write-Header($Message) {
 }
 
 # ============================================================================
-# VERIFICAÇÃO DE DEPENDÊNCIAS
+# PASSWORD AND SECURITY FUNCTIONS
+# ============================================================================
+
+function Get-SecurePassword {
+    Write-Header "Configuracao de Senha do Administrador"
+    Write-Host "Digite a senha do usuario admin (nao sera exibida)" -ForegroundColor Yellow
+    Write-Host ""
+    
+    do {
+        # Get password (no echo)
+        $password1 = Read-Host "  Senha" -AsSecureString
+        
+        # Check if empty
+        $BSTR1 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($password1)
+        $plain1 = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR1)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR1)
+        
+        if ([string]::IsNullOrWhiteSpace($plain1)) {
+            Write-Err "Senha nao pode ser vazia. Tente novamente."
+            Write-Host ""
+            continue
+        }
+        
+        if ($plain1.Length -lt 6) {
+            Write-Err "Senha deve ter no minimo 6 caracteres. Tente novamente."
+            Write-Host ""
+            continue
+        }
+        
+        # Confirm password
+        $password2 = Read-Host "  Confirme a senha" -AsSecureString
+        
+        $BSTR2 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($password2)
+        $plain2 = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR2)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR2)
+        
+        if ($plain1 -ne $plain2) {
+            Write-Err "As senhas nao coincidem. Tente novamente."
+            Write-Host ""
+        }
+        else {
+            Write-OK "Senha configurada com sucesso"
+            return $plain1
+        }
+    } while ($true)
+}
+
+function Get-PasswordHash($PlainPassword) {
+    Write-Info "Gerando hash bcrypt da senha (criptografia segura)..."
+    
+    try {
+        # Use Node.js to generate bcrypt hash
+        $hashScript = @"
+const bcrypt = require('bcrypt');
+const hash = bcrypt.hashSync('$PlainPassword', 12);
+console.log(hash);
+"@
+        
+        $hash = $hashScript | node
+        $hash = $hash.Trim()
+        
+        if ($hash -and $hash.StartsWith('$2')) {
+            Write-OK "Hash gerado com sucesso"
+            return $hash
+        }
+        else {
+            throw "Hash invalido"
+        }
+    }
+    catch {
+        Write-Err "Falha ao gerar hash: $_"
+        Write-Info "Tentando metodo alternativo..."
+        
+        # Fallback: generate simple hash (should not happen normally)
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($PlainPassword)
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        $hashBytes = $sha256.ComputeHash($bytes)
+        return [Convert]::ToBase64String($hashBytes)
+    }
+}
+
+function Generate-SecureSecrets {
+    Write-Info "Gerando segredos criptograficos seguros..."
+    
+    # JWT_ACCESS_SECRET - 64 bytes = 512 bits
+    $accessBytes = New-Object byte[] 64
+    $rng1 = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng1.GetBytes($accessBytes)
+    $rng1.Dispose()
+    $jwtAccess = [Convert]::ToBase64String($accessBytes)
+    
+    # JWT_REFRESH_SECRET - 64 bytes = 512 bits
+    $refreshBytes = New-Object byte[] 64
+    $rng2 = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng2.GetBytes($refreshBytes)
+    $rng2.Dispose()
+    $jwtRefresh = [Convert]::ToBase64String($refreshBytes)
+    
+    # KEY_ENC_MASTER_B64 - 32 bytes = 256 bits
+    $masterBytes = New-Object byte[] 32
+    $rng3 = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng3.GetBytes($masterBytes)
+    $rng3.Dispose()
+    $masterKey = [Convert]::ToBase64String($masterBytes)
+    
+    Write-OK "Segredos gerados com sucesso (RNG crypto seguro)"
+    
+    return @{
+        JWT_ACCESS_SECRET = $jwtAccess
+        JWT_REFRESH_SECRET = $jwtRefresh
+        KEY_ENC_MASTER_B64 = $masterKey
+    }
+}
+
+# ============================================================================
+# NETWORK FUNCTIONS
+# ============================================================================
+
+function Get-LocalIP {
+    Write-Info "Detectando IP da rede local..."
+    
+    try {
+        # Get all network adapters
+        $adapters = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+            Where-Object { 
+                $_.IPAddress -ne '127.0.0.1' -and 
+                $_.IPAddress -notlike '169.254.*' -and
+                $_.PrefixOrigin -eq 'Dhcp' -or $_.PrefixOrigin -eq 'Manual'
+            }
+        
+        # Prefer Ethernet, then Wi-Fi
+        $preferred = $adapters | Where-Object { 
+            $interface = Get-NetAdapter -InterfaceIndex $_.InterfaceIndex -ErrorAction SilentlyContinue
+            $interface.Name -like '*Ethernet*' -or $interface.Name -like '*Wi-Fi*' -or $interface.Name -like '*Wireless*'
+        } | Select-Object -First 1
+        
+        if ($preferred) {
+            $script:LocalIP = $preferred.IPAddress
+            Write-OK "IP detectado: $script:LocalIP"
+            return $script:LocalIP
+        }
+        
+        # Fallback: any valid IP
+        if ($adapters) {
+            $script:LocalIP = $adapters[0].IPAddress
+            Write-OK "IP detectado: $script:LocalIP"
+            return $script:LocalIP
+        }
+        
+        # Last resort
+        $script:LocalIP = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -ne '127.0.0.1'} | Select-Object -First 1).IPAddress
+        if ($script:LocalIP) {
+            Write-OK "IP detectado: $script:LocalIP"
+        }
+        else {
+            $script:LocalIP = "127.0.0.1"
+            Write-Warn "Nao foi possivel detectar IP automatico. Usando localhost."
+        }
+        
+        return $script:LocalIP
+    }
+    catch {
+        $script:LocalIP = "127.0.0.1"
+        Write-Warn "Erro ao detectar IP: $_. Usando localhost."
+        return $script:LocalIP
+    }
+}
+
+# ============================================================================
+# ENV FILE CREATION
+# ============================================================================
+
+function New-EnvFile($Path, $PasswordHash, $Secrets) {
+    Write-Info "Criando arquivo de configuracao .env..."
+    
+    $envContent = @"
+# OpenClaw Control - Configuracao Automatica
+# Gerado em: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+# NAO COMPARTILHE ESTE ARQUIVO
+
+# Ambiente
+NODE_ENV=production
+PORT=7000
+
+# Seguranca - JWT Tokens
+JWT_ACCESS_SECRET=$($Secrets.JWT_ACCESS_SECRET)
+JWT_REFRESH_SECRET=$($Secrets.JWT_REFRESH_SECRET)
+JWT_ACCESS_TTL_MIN=15
+JWT_REFRESH_TTL_DAYS=7
+
+# Seguranca - Criptografia
+KEY_ENC_MASTER_B64=$($Secrets.KEY_ENC_MASTER_B64)
+
+# Banco de Dados
+DB_PATH=./data/app.db
+
+# Administrador
+ADMIN_USER=admin
+ADMIN_PASS_HASH=$PasswordHash
+
+# Configuracoes
+OPENCLAW_URL=http://127.0.0.1:18789
+CORS_ORIGIN=http://localhost:7000
+"@
+    
+    $envContent | Out-File -FilePath $Path -Encoding UTF8 -Force
+    Write-OK "Arquivo .env criado com segredos e senha configurados"
+}
+
+# ============================================================================
+# FINAL OUTPUT
+# ============================================================================
+
+function Show-FinalResult($IsUpdate, $ServiceStatus) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "   OpenClaw Control - Instalado com Sucesso" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host ""
+    
+    Write-Host "ACESSO LOCAL:" -ForegroundColor Cyan
+    Write-Host "  http://localhost:7000" -ForegroundColor Green
+    Write-Host ""
+    
+    Write-Host "ACESSO NA REDE:" -ForegroundColor Cyan
+    if ($script:LocalIP -and $script:LocalIP -ne "127.0.0.1") {
+        Write-Host "  http://$($script:LocalIP):7000" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  (Nao disponivel - apenas localhost)" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    
+    Write-Host "SERVICO WINDOWS:" -ForegroundColor Cyan
+    Write-Host "  Nome: $ServiceName"
+    Write-Host "  Status: $ServiceStatus" -ForegroundColor $(if ($ServiceStatus -eq 'Running') { $Green } else { $Yellow })
+    Write-Host ""
+    
+    Write-Host "USUARIO ADMIN:" -ForegroundColor Cyan
+    Write-Host "  Usuario: admin" -ForegroundColor White
+    Write-Host "  Senha: (configurada durante instalacao)" -ForegroundColor White
+    Write-Host ""
+    
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Pressione ENTER para finalizar..." -ForegroundColor Yellow
+    Read-Host
+}
+
+# ============================================================================
+# DEPENDENCY CHECKS
 # ============================================================================
 
 function Test-NodeVersion {
@@ -97,81 +334,10 @@ function Test-OpenClawCLI {
         return [bool]$version
     }
     catch { return $false }
-    }
-
-# ============================================================================
-# INSTALAÇÃO OPENCLAW CLI
-# ============================================================================
-
-function Install-OpenClawCLI {
-    Write-Header "Verificando OpenClaw CLI"
-    
-    if (Test-OpenClawCLI) {
-        $version = openclaw --version
-        Write-Success "OpenClaw CLI detectado (versão: $version)"
-        Write-Info "Pulando instalação do CLI"
-        return
-    }
-    
-    if ($SkipOpenClawCLI) {
-        Write-Warning "OpenClaw CLI não detectado, mas -SkipOpenClawCLI foi especificado"
-        Write-Info "Continuando sem OpenClaw CLI..."
-        return
-    }
-    
-    Write-Info "OpenClaw CLI não encontrado. Instalando..."
-    
-    try {
-        # Tenta instalar via winget (Windows 10/11)
-        $wingetExists = Get-Command winget -ErrorAction SilentlyContinue
-        if ($wingetExists) {
-            Write-Info "Instalando via winget..."
-            winget install --id OpenClaw.OpenClaw -e --accept-source-agreements --accept-package-agreements
-            if (Test-OpenClawCLI) {
-                Write-Success "OpenClaw CLI instalado com sucesso"
-                return
-            }
-        }
-        
-        # Fallback: Download direto
-        Write-Info "Baixando OpenClaw CLI..."
-        $cliUrl = "https://github.com/openclaw/openclaw/releases/latest/download/openclaw-windows-amd64.exe"
-        $cliPath = "$env:TEMP\openclaw.exe"
-        
-        Invoke-WebRequest -Uri $cliUrl -OutFile $cliPath -UseBasicParsing
-        
-        # Mover para pasta do sistema
-        $installPath = "C:\Program Files\OpenClaw\openclaw.exe"
-        $targetDir = Split-Path $installPath -Parent
-        
-        if (-not (Test-Path $targetDir)) {
-            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-        }
-        
-        Move-Item -Path $cliPath -Destination $installPath -Force
-        
-        # Adicionar ao PATH
-        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-        if ($currentPath -notlike "*$targetDir*") {
-            [Environment]::SetEnvironmentVariable("Path", "$currentPath;$targetDir", "Machine")
-            $env:Path = "$env:Path;$targetDir"
-        }
-        
-        if (Test-OpenClawCLI) {
-            Write-Success "OpenClaw CLI instalado com sucesso"
-        }
-        else {
-            Write-Warning "Instalação do CLI concluída, mas comando não disponível. Reinicie o terminal."
-        }
-    }
-    catch {
-        Write-Error "Falha ao instalar OpenClaw CLI: $_"
-        Write-Info "Continuando sem OpenClaw CLI..."
-    }
 }
 
 # ============================================================================
-# VERIFICAÇÃO DE SERVIÇO WINDOWS
+# SERVICE MANAGEMENT
 # ============================================================================
 
 function Test-ServiceExists {
@@ -180,102 +346,83 @@ function Test-ServiceExists {
 
 function Stop-OpenClawService {
     if (Test-ServiceExists) {
-        Write-Info "Parando serviço $ServiceName..."
+        Write-Info "Parando servico $ServiceName..."
         try {
             Stop-Service -Name $ServiceName -Force -ErrorAction Stop
             Start-Sleep -Seconds 3
-            Write-Success "Serviço parado"
+            Write-OK "Servico parado"
         }
         catch {
-            Write-Warning "Não foi possível parar o serviço: $_"
+            Write-Warn "Nao foi possivel parar o servico: $_"
         }
     }
 }
 
 function Start-OpenClawService {
     if (Test-ServiceExists) {
-        Write-Info "Iniciando serviço $ServiceName..."
+        Write-Info "Iniciando servico $ServiceName..."
         try {
             Start-Service -Name $ServiceName
-            Start-Sleep -Seconds 3
+            Start-Sleep -Seconds 5
             
             $service = Get-Service -Name $ServiceName
             if ($service.Status -eq 'Running') {
-                Write-Success "Serviço iniciado com sucesso"
+                Write-OK "Servico iniciado com sucesso"
+                return 'Running'
             }
             else {
-                Write-Warning "Serviço não está em execução. Verifique os logs em $LogDir"
+                Write-Warn "Servico nao esta em execucao. Verifique os logs em $LogDir"
+                return $service.Status
             }
         }
         catch {
-            Write-Error "Falha ao iniciar serviço: $_"
+            Write-Err "Falha ao iniciar servico: $_"
+            return 'Error'
         }
     }
-}
-
-# ============================================================================
-# INSTALAÇÃO/ATUALIZAÇÃO DO PROJETO
-# ============================================================================
-
-function Install-NSSM {
-    Write-Info "Verificando NSSM..."
-    
-    $nssmPath = "$ProjectRoot\nssm\nssm.exe"
-    
-    if (Test-Path $nssmPath) {
-        Write-Success "NSSM já encontrado"
-        return $nssmPath
-    }
-    
-    Write-Info "Baixando NSSM..."
-    
-    try {
-        $nssmDir = "$ProjectRoot\nssm"
-        New-Item -ItemType Directory -Path $nssmDir -Force | Out-Null
-        
-        $nssmZip = "$env:TEMP\nssm-$NSSMVersion.zip"
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $NSSMDownloadUrl -OutFile $nssmZip -UseBasicParsing
-        
-        Expand-Archive -Path $nssmZip -DestinationPath "$env:TEMP\nssm-extract" -Force
-        
-        $win32Exe = Get-ChildItem -Path "$env:TEMP\nssm-extract" -Recurse -Filter "nssm.exe" | 
-            Where-Object { $_.DirectoryName -like "*win32*" } | 
-            Select-Object -First 1
-        
-        if (-not $win32Exe) {
-            $win32Exe = Get-ChildItem -Path "$env:TEMP\nssm-extract" -Recurse -Filter "nssm.exe" | 
-                Select-Object -First 1
-        }
-        
-        if ($win32Exe) {
-            Copy-Item -Path $win32Exe.FullName -Destination $nssmDir -Force
-            Remove-Item -Path $nssmZip -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path "$env:TEMP\nssm-extract" -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Success "NSSM instalado"
-            return $nssmPath
-        }
-        
-        throw "NSSM.exe não encontrado"
-    }
-    catch {
-        Write-Error "Falha ao instalar NSSM: $_"
-        exit 1
-    }
+    return 'NotInstalled'
 }
 
 function Install-WindowsService {
-    $nssmPath = Install-NSSM
+    Write-Header "Configurando Servico Windows"
     
-    Write-Info "Configurando serviço Windows..."
+    $nssmPath = "$ProjectRoot\nssm\nssm.exe"
     
-    if (Test-ServiceExists) {
-        Write-Info "Serviço já existe, apenas reiniciando..."
-        Start-OpenClawService
-        return
+    # Download NSSM if needed
+    if (-not (Test-Path $nssmPath)) {
+        Write-Info "Baixando NSSM..."
+        try {
+            $nssmDir = "$ProjectRoot\nssm"
+            New-Item -ItemType Directory -Path $nssmDir -Force | Out-Null
+            
+            $nssmZip = "$env:TEMP\nssm-$NSSMVersion.zip"
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $NSSMDownloadUrl -OutFile $nssmZip -UseBasicParsing
+            
+            Expand-Archive -Path $nssmZip -DestinationPath "$env:TEMP\nssm-extract" -Force
+            
+            $win32Exe = Get-ChildItem -Path "$env:TEMP\nssm-extract" -Recurse -Filter "nssm.exe" | 
+                Select-Object -First 1
+            
+            if ($win32Exe) {
+                Copy-Item -Path $win32Exe.FullName -Destination $nssmDir -Force
+                Remove-Item -Path $nssmZip -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path "$env:TEMP\nssm-extract" -Recurse -Force -ErrorAction SilentlyContinue
+                Write-OK "NSSM instalado"
+            }
+        }
+        catch {
+            Write-Err "Falha ao instalar NSSM: $_"
+            exit 1
+        }
     }
     
-    Write-Info "Criando novo serviço $ServiceName..."
+    if (Test-ServiceExists) {
+        Write-Info "Servico ja existe, apenas reiniciando..."
+        return (Start-OpenClawService)
+    }
+    
+    Write-Info "Criando novo servico $ServiceName..."
     
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
     
@@ -292,77 +439,44 @@ function Install-WindowsService {
     & $nssmPath set $ServiceName AppRotateBytes 10485760
     & $nssmPath set $ServiceName Start SERVICE_AUTO_START
     
-    Write-Success "Serviço criado"
-    Start-OpenClawService
+    Write-OK "Servico criado"
+    return (Start-OpenClawService)
 }
 
-function New-EnvFile($Path) {
-    Write-Info "Gerando arquivo .env com segredos..."
-    
-    $jwtAccess = -join ((1..64) | ForEach-Object { Get-Random -Maximum 16 | ForEach-Object { "0123456789abcdef"[$_] } })
-    $jwtRefresh = -join ((1..64) | ForEach-Object { Get-Random -Maximum 16 | ForEach-Object { "0123456789abcdef"[$_] } })
-    
-    $bytes = New-Object byte[] 32
-    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-    $rng.GetBytes($bytes)
-    $rng.Dispose()
-    $masterKey = [Convert]::ToBase64String($bytes)
-    
-    $envContent = @"
-# OpenClaw Control - Configuração Automática
-# Gerado em: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-# NÃO COMPARTILHE ESTE ARQUIVO
-
-NODE_ENV=production
-PORT=7000
-JWT_ACCESS_SECRET=$jwtAccess
-JWT_REFRESH_SECRET=$jwtRefresh
-JWT_ACCESS_TTL_MIN=15
-JWT_REFRESH_TTL_DAYS=7
-KEY_ENC_MASTER_B64=$masterKey
-DB_PATH=./data/app.db
-ADMIN_USER=admin
-ADMIN_PASS_HASH=
-OPENCLAW_URL=http://127.0.0.1:18789
-CORS_ORIGIN=http://localhost:7000
-"@
-    
-    $envContent | Out-File -FilePath $Path -Encoding UTF8 -Force
-    Write-Success "Arquivo .env criado"
-    Write-Warning "IMPORTANTE: Configure a senha do admin em ADMIN_PASS_HASH"
-}
+# ============================================================================
+# INSTALLATION MODES
+# ============================================================================
 
 function Update-Application {
     Write-Header "Modo UPDATE - Atualizando OpenClaw Control"
     
     Set-Location $ProjectRoot
     
-    # Parar serviço se existir
+    # Stop service
     Stop-OpenClawService
     
-    # Backup do .env (caso algo dê errado)
+    # Backup .env
     if (Test-Path "$ProjectRoot\.env") {
         Copy-Item "$ProjectRoot\.env" "$ProjectRoot\.env.backup" -Force
-        Write-Info "Backup do .env criado (.env.backup)"
+        Write-Info "Backup do .env criado"
     }
     
     # Git pull
-    Write-Info "Atualizando código-fonte..."
+    Write-Info "Atualizando codigo-fonte..."
     try {
         $gitOutput = git pull origin main 2>&1
         if ($LASTEXITCODE -ne 0) {
             throw "Git pull falhou: $gitOutput"
         }
-        Write-Success "Código atualizado"
+        Write-OK "Codigo atualizado"
     }
     catch {
-        Write-Error "Falha ao atualizar código: $_"
+        Write-Err "Falha ao atualizar codigo: $_"
         exit 1
     }
     
-    # npm install - mostrar progresso
-    Write-Info "Atualizando dependencias (isso pode levar 2-3 minutos)..."
-    Write-Info "Aguarde, nao feche esta janela..."
+    # npm install
+    Write-Info "Atualizando dependencias..."
     try {
         npm install --production 2>&1 | ForEach-Object {
             Write-Host "    $_" -ForegroundColor Gray
@@ -370,60 +484,51 @@ function Update-Application {
         if ($LASTEXITCODE -ne 0) {
             throw "npm install falhou"
         }
-        Write-Success "Dependencias atualizadas"
+        Write-OK "Dependencias atualizadas"
     }
     catch {
-        Write-Error "Falha ao atualizar dependencias: $_"
+        Write-Err "Falha ao atualizar dependencias: $_"
         exit 1
     }
     
-    # Verificar se .env ainda existe
+    # Restore .env if needed
     if (-not (Test-Path "$ProjectRoot\.env")) {
-        Write-Warning ".env não encontrado! Restaurando backup..."
         if (Test-Path "$ProjectRoot\.env.backup") {
             Move-Item "$ProjectRoot\.env.backup" "$ProjectRoot\.env" -Force
-            Write-Success ".env restaurado do backup"
-        }
-        else {
-            Write-Error ".env perdido e sem backup!"
-            exit 1
+            Write-OK ".env restaurado do backup"
         }
     }
     else {
-        # Remover backup se tudo OK
-        if (Test-Path "$ProjectRoot\.env.backup") {
-            Remove-Item "$ProjectRoot\.env.backup" -Force
-        }
+        Remove-Item "$ProjectRoot\.env.backup" -Force -ErrorAction SilentlyContinue
     }
     
-    Write-Success "Atualização concluída com sucesso!"
+    Write-OK "Atualizacao concluida com sucesso!"
 }
 
-function Install-NewApplication {
-    Write-Header "Instalação Nova - OpenClaw Control"
+function Install-NewApplication($PasswordHash, $Secrets) {
+    Write-Header "Instalacao Nova - OpenClaw Control"
     
-    # Criar diretório
-    Write-Info "Criando diretório $InstallDir..."
+    # Create directory
+    Write-Info "Criando diretorio $InstallDir..."
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     Set-Location $InstallDir
     
-    # Clonar repositório
-    Write-Info "Clonando repositório..."
+    # Clone repository
+    Write-Info "Clonando repositorio..."
     try {
         git clone $RepoUrl . 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "Git clone falhou"
         }
-        Write-Success "Repositório clonado"
+        Write-OK "Repositorio clonado"
     }
     catch {
-        Write-Error "Falha ao clonar: $_"
+        Write-Err "Falha ao clonar: $_"
         exit 1
     }
     
-    # npm install - mostrar progresso
-    Write-Info "Instalando dependencias (isso pode levar 2-3 minutos)..."
-    Write-Info "Aguarde, nao feche esta janela..."
+    # npm install
+    Write-Info "Instalando dependencias..."
     try {
         npm install --production 2>&1 | ForEach-Object {
             Write-Host "    $_" -ForegroundColor Gray
@@ -431,163 +536,99 @@ function Install-NewApplication {
         if ($LASTEXITCODE -ne 0) {
             throw "npm install falhou"
         }
-        Write-Success "Dependencias instaladas"
+        Write-OK "Dependencias instaladas"
     }
     catch {
-        Write-Error "Falha ao instalar dependencias: $_"
+        Write-Err "Falha ao instalar dependencias: $_"
         exit 1
     }
     
-    # Criar .env
-    if (-not (Test-Path "$ProjectRoot\.env")) {
-        New-EnvFile -Path "$ProjectRoot\.env"
-    }
+    # Create .env
+    New-EnvFile -Path "$ProjectRoot\.env" -PasswordHash $PasswordHash -Secrets $Secrets
     
-    # Criar serviço
-    Install-WindowsService
+    # Create service
+    return (Install-WindowsService)
 }
 
 # ============================================================================
 # MAIN
 # ============================================================================
 
-# Verificar admin
+# Check admin
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Error "Este script deve ser executado como ADMINISTRADOR"
-    Write-Info "Clique com botão direito no PowerShell e selecione 'Executar como Administrador'"
+    Write-Err "Este script deve ser executado como ADMINISTRADOR"
+    Write-Info "Clique com botao direito no PowerShell e selecione 'Executar como Administrador'"
+    Read-Host "Pressione ENTER para sair"
     exit 1
 }
 
 Clear-Host
 Write-Header "OpenClaw Control - Instalador Windows"
 
-# Verificar dependências
+# Check dependencies
 Write-Info "Verificando Node.js..."
 if (-not (Test-NodeVersion)) {
-    Write-Error "Node.js 20+ não encontrado!"
+    Write-Err "Node.js 20+ nao encontrado!"
     Write-Info "Instale o Node.js: https://nodejs.org/"
+    Read-Host "Pressione ENTER para sair"
     exit 1
 }
-Write-Success "Node.js $(node --version) encontrado"
+Write-OK "Node.js $(node --version) encontrado"
 
 Write-Info "Verificando Git..."
 if (-not (Test-GitInstalled)) {
-    Write-Error "Git não encontrado!"
+    Write-Err "Git nao encontrado!"
     Write-Info "Instale o Git: https://git-scm.com/download/win"
+    Read-Host "Pressione ENTER para sair"
     exit 1
 }
-Write-Success "Git encontrado"
+Write-OK "Git encontrado"
 
-# OpenClaw CLI
-Install-OpenClawCLI
+# Detect local IP
+Get-LocalIP
 
-# Verificar instalação existente
+# Check existing installation
 $isUpdate = $false
 if (Test-Path $ProjectRoot) {
-    Write-Info "Diretório $ProjectRoot existe"
+    Write-Info "Diretorio $ProjectRoot existe"
     
     if (Test-Path "$ProjectRoot\.git") {
-        Write-Success "Instalação existente detectada (repositório git encontrado)"
+        Write-OK "Instalacao existente detectada"
         $isUpdate = $true
     }
     else {
-        Write-Warning "Diretório existe mas não parece ser uma instalação OpenClaw Control"
+        Write-Warn "Diretorio existe mas nao e uma instalacao OpenClaw Control"
         $response = Read-Host "Deseja instalar mesmo assim? (S/N) [N]"
         if ($response -ne 'S' -and $response -ne 's') {
-            Write-Info "Instalação cancelada"
+            Write-Info "Instalacao cancelada"
             exit 0
         }
     }
 }
 
-# Executar instalação ou update
+# Execute installation or update
 if ($isUpdate) {
     Update-Application
+    $serviceStatus = (Start-OpenClawService)
+    Show-FinalResult -IsUpdate $true -ServiceStatus $serviceStatus
+}
+else {
+    # Get admin password
+    $plainPassword = Get-SecurePassword
     
-    # Garantir que serviço existe e está rodando
-    Install-WindowsService
-}
-else {
-    Install-NewApplication
-}
-
-# ============================================================================
-# RESULTADO FINAL - SEMPRE MOSTRAR
-# ============================================================================
-
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Green
-Write-Host "  RESULTADO DA OPERACAO" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Green
-Write-Host ""
-
-if ($isUpdate) {
-    Write-Host "✓ Modo: ATUALIZACAO" -ForegroundColor Green
-    Write-Host "✓ Status: Concluido com sucesso" -ForegroundColor Green
-}
-else {
-    Write-Host "✓ Modo: INSTALACAO NOVA" -ForegroundColor Green
-    Write-Host "✓ Status: Concluido com sucesso" -ForegroundColor Green
-}
-
-Write-Host ""
-Write-Host "INFORMACOES DE ACESSO:" -ForegroundColor Cyan
-Write-Host "----------------------------------------"
-Write-Host "  URL:        http://localhost:7000" -ForegroundColor Green
-Write-Host "  Diretorio:  $ProjectRoot" -ForegroundColor White
-
-Write-Host ""
-Write-Host "STATUS DO SERVICO:" -ForegroundColor Cyan
-Write-Host "----------------------------------------"
-if (Test-ServiceExists) {
-    $svc = Get-Service -Name $ServiceName
-    Write-Host "  Nome:       $ServiceName"
-    Write-Host "  Status:     $($svc.Status)" -ForegroundColor $(if ($svc.Status -eq 'Running') { $Green } else { $Yellow })
+    # Generate hash
+    $passwordHash = Get-PasswordHash -PlainPassword $plainPassword
     
-    # Testar se esta respondendo
-    try {
-        $response = Invoke-WebRequest -Uri "http://localhost:7000/api/health" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
-        if ($response.StatusCode -eq 200) {
-            Write-Host "  Health:     ONLINE ✓" -ForegroundColor Green
-        }
-    }
-    catch {
-        Write-Host "  Health:     Iniciando... (aguarde 10s)" -ForegroundColor Yellow
-    }
+    # Clear password from memory
+    $plainPassword = $null
+    [System.GC]::Collect()
+    
+    # Generate secrets
+    $secrets = Generate-SecureSecrets
+    
+    # Install
+    $serviceStatus = Install-NewApplication -PasswordHash $passwordHash -Secrets $secrets
+    
+    # Show final result
+    Show-FinalResult -IsUpdate $false -ServiceStatus $serviceStatus
 }
-else {
-    Write-Host "  Status:     Servico nao criado" -ForegroundColor Yellow
-}
-
-Write-Host ""
-Write-Host "COMANDOS UTEIS:" -ForegroundColor Cyan
-Write-Host "----------------------------------------"
-Write-Host "  Acessar:           http://localhost:7000" -ForegroundColor Green
-Write-Host "  Ver logs:          Get-Content '$LogDir\stdout.log' -Tail 50"
-Write-Host "  Iniciar servico:   Start-Service $ServiceName"
-Write-Host "  Parar servico:     Stop-Service $ServiceName"
-Write-Host "  Ver status:        Get-Service $ServiceName"
-Write-Host "  Atualizar:         cd $ProjectRoot; .\install.ps1"
-
-if (-not $isUpdate) {
-    Write-Host ""
-    Write-Host "⚠️  PROXIMA ETAPA IMPORTANTE:" -ForegroundColor Yellow -BackgroundColor Black
-    Write-Host "  1. Configure a senha do admin no arquivo .env" -ForegroundColor Yellow
-    Write-Host "     Local: $ProjectRoot\.env" -ForegroundColor White
-    Write-Host "  2. Reinicie o servico: Restart-Service $ServiceName" -ForegroundColor Yellow
-    Write-Host "  3. Acesse: http://localhost:7000" -ForegroundColor Green
-}
-
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Green
-
-# ============================================================================
-# PAUSAR - NUNCA FECHAR AUTOMATICAMENTE
-# ============================================================================
-
-Write-Host ""
-Write-Host "Pressione ENTER para fechar esta janela..." -ForegroundColor Yellow -BackgroundColor Black
-Write-Host ""
-
-# Forcar pause mesmo se estiver via IEX
-$Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
