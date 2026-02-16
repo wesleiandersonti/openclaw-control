@@ -9,7 +9,30 @@ param(
     [string]$RepoUrl = "https://github.com/wesleiandersonti/openclaw-control.git"
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
+
+# Global error handler - NEVER close window without showing error
+trap {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "  ERRO CRITICO" -ForegroundColor Red
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Erro: $_" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Linha: $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Stack: $($_.ScriptStackTrace)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "O instalador encontrou um erro." -ForegroundColor Yellow
+    Write-Host "Verifique a mensagem acima e tente novamente." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Pressione ENTER para fechar..." -ForegroundColor Yellow -BackgroundColor Black
+    Read-Host
+    exit 1
+}
 
 # Configurations
 $ServiceName = "OpenClawControl"
@@ -659,85 +682,112 @@ function Install-NewApplication($PasswordHash, $Secrets) {
 }
 
 # ============================================================================
-# MAIN
+# MAIN - WITH ERROR HANDLING
 # ============================================================================
 
-# Check admin
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Err "Este script deve ser executado como ADMINISTRADOR"
-    Write-Info "Clique com botao direito no PowerShell e selecione 'Executar como Administrador'"
-    Read-Host "Pressione ENTER para sair"
-    exit 1
-}
+try {
+    # Check admin
+    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Err "Este script deve ser executado como ADMINISTRADOR"
+        Write-Info "Clique com botao direito no PowerShell e selecione 'Executar como Administrador'"
+        Read-Host "Pressione ENTER para sair"
+        exit 1
+    }
 
-Clear-Host
-Write-Header "OpenClaw Control - Instalador Windows (Auto-Install)"
+    Clear-Host
+    Write-Header "OpenClaw Control - Instalador Windows (Auto-Install)"
+    Write-Info "Iniciando instalacao..."
+    Write-Info "Este processo pode levar 5-10 minutos"
+    Write-Host ""
 
-# Check and install Node.js
-Write-Info "Verificando Node.js..."
-if (-not (Test-NodeVersion)) {
-    Write-Warn "Node.js nao encontrado"
-    Install-NodeJS
-}
-else {
-    Write-OK "Node.js $(node --version) encontrado"
-}
-
-# Check and install Git
-Write-Info "Verificando Git..."
-if (-not (Test-GitInstalled)) {
-    Write-Warn "Git nao encontrado"
-    Install-Git
-}
-else {
-    Write-OK "Git $(git --version) encontrado"
-}
-
-# Detect local IP
-Get-LocalIP
-
-# Check existing installation
-$isUpdate = $false
-if (Test-Path $ProjectRoot) {
-    Write-Info "Diretorio $ProjectRoot existe"
-    
-    if (Test-Path "$ProjectRoot\.git") {
-        Write-OK "Instalacao existente detectada"
-        $isUpdate = $true
+    # Check and install Node.js
+    Write-Info "Verificando Node.js..."
+    if (-not (Test-NodeVersion)) {
+        Write-Warn "Node.js nao encontrado - Instalando automaticamente..."
+        Install-NodeJS
     }
     else {
-        Write-Warn "Diretorio existe mas nao e uma instalacao OpenClaw Control"
-        $response = Read-Host "Deseja instalar mesmo assim? (S/N) [N]"
-        if ($response -ne 'S' -and $response -ne 's') {
-            Write-Info "Instalacao cancelada"
-            exit 0
+        Write-OK "Node.js $(node --version) encontrado"
+    }
+
+    # Check and install Git
+    Write-Info "Verificando Git..."
+    if (-not (Test-GitInstalled)) {
+        Write-Warn "Git nao encontrado - Instalando automaticamente..."
+        Install-Git
+    }
+    else {
+        Write-OK "Git $(git --version) encontrado"
+    }
+
+    # Detect local IP
+    Get-LocalIP
+
+    # Check existing installation
+    $isUpdate = $false
+    if (Test-Path $ProjectRoot) {
+        Write-Info "Diretorio $ProjectRoot existe"
+        
+        if (Test-Path "$ProjectRoot\.git") {
+            Write-OK "Instalacao existente detectada - Modo UPDATE"
+            $isUpdate = $true
+        }
+        else {
+            Write-Warn "Diretorio existe mas nao e uma instalacao OpenClaw Control"
+            $response = Read-Host "Deseja instalar mesmo assim? (S/N) [N]"
+            if ($response -ne 'S' -and $response -ne 's') {
+                Write-Info "Instalacao cancelada"
+                Read-Host "Pressione ENTER para sair"
+                exit 0
+            }
         }
     }
-}
 
-# Execute installation or update
-if ($isUpdate) {
-    Update-Application
-    $serviceStatus = (Start-OpenClawService)
-    Show-FinalResult -IsUpdate $true -ServiceStatus $serviceStatus
+    # Execute installation or update
+    if ($isUpdate) {
+        Update-Application
+        $serviceStatus = (Start-OpenClawService)
+        Show-FinalResult -IsUpdate $true -ServiceStatus $serviceStatus
+    }
+    else {
+        # Get admin password
+        $plainPassword = Get-SecurePassword
+        
+        # Generate hash
+        $passwordHash = Get-PasswordHash -PlainPassword $plainPassword
+        
+        # Clear password from memory
+        $plainPassword = $null
+        [System.GC]::Collect()
+        
+        # Generate secrets
+        $secrets = Generate-SecureSecrets
+        
+        # Install
+        $serviceStatus = Install-NewApplication -PasswordHash $passwordHash -Secrets $secrets
+        
+        # Show final result
+        Show-FinalResult -IsUpdate $false -ServiceStatus $serviceStatus
+    }
 }
-else {
-    # Get admin password
-    $plainPassword = Get-SecurePassword
-    
-    # Generate hash
-    $passwordHash = Get-PasswordHash -PlainPassword $plainPassword
-    
-    # Clear password from memory
-    $plainPassword = $null
-    [System.GC]::Collect()
-    
-    # Generate secrets
-    $secrets = Generate-SecureSecrets
-    
-    # Install
-    $serviceStatus = Install-NewApplication -PasswordHash $passwordHash -Secrets $secrets
-    
-    # Show final result
-    Show-FinalResult -IsUpdate $false -ServiceStatus $serviceStatus
+catch {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "  ERRO DURANTE INSTALACAO" -ForegroundColor Red
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Mensagem: $_" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Detalhes do erro salvos acima." -ForegroundColor Yellow
+    Write-Host ""
+}
+finally {
+    # ALWAYS show final message and wait
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "  Instalador Finalizado" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Pressione ENTER para fechar esta janela..." -ForegroundColor Yellow -BackgroundColor Black
+    Read-Host
 }
