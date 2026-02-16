@@ -1,13 +1,12 @@
-# OpenClaw Control - Windows Installer
-# Requirements: Windows 10/11, Node.js 20+, Git
-# Usage: Run as Administrator
+# OpenClaw Control - Windows Installer (Auto-Install Dependencies)
+# Requirements: Windows 10/11
+# Usage: Run as Administrator - Installs everything automatically
 
 #Requires -Version 5.1
 
 param(
     [string]$InstallDir = "C:\OpenClawControl",
-    [string]$RepoUrl = "https://github.com/wesleiandersonti/openclaw-control.git",
-    [switch]$SkipOpenClawCLI
+    [string]$RepoUrl = "https://github.com/wesleiandersonti/openclaw-control.git"
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,6 +50,148 @@ function Write-Header($Message) {
     Write-Host "  $Message" -ForegroundColor $Cyan
     Write-Host "========================================" -ForegroundColor $Cyan
     Write-Host ""
+}
+
+# ============================================================================
+# AUTO-INSTALL DEPENDENCIES
+# ============================================================================
+
+function Install-NodeJS {
+    Write-Header "Instalacao Automatica - Node.js"
+    Write-Info "Node.js nao encontrado. Iniciando instalacao automatica..."
+    
+    try {
+        # Try winget first
+        $wingetExists = Get-Command winget -ErrorAction SilentlyContinue
+        if ($wingetExists) {
+            Write-Info "Instalando Node.js via winget..."
+            Write-Info "Isso pode levar alguns minutos..."
+            
+            # Install Node.js LTS
+            $process = Start-Process -FilePath "winget" -ArgumentList "install", "OpenJS.NodeJS.LTS", "--accept-source-agreements", "--accept-package-agreements", "-e" -Wait -PassThru
+            
+            if ($process.ExitCode -eq 0) {
+                # Refresh environment variables
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                
+                # Verify installation
+                if (Test-NodeVersion) {
+                    Write-OK "Node.js $(node --version) instalado com sucesso"
+                    return $true
+                }
+            }
+        }
+        
+        # Fallback: Download and install manually
+        Write-Info "Baixando Node.js..."
+        $nodeUrl = "https://nodejs.org/dist/v20.11.0/node-v20.11.0-x64.msi"
+        $nodeInstaller = "$env:TEMP\nodejs-installer.msi"
+        
+        Invoke-WebRequest -Uri $nodeUrl -OutFile $nodeInstaller -UseBasicParsing
+        
+        Write-Info "Instalando Node.js..."
+        $process = Start-Process -FilePath "msiexec.exe" -ArgumentList "/i", $nodeInstaller, "/qn", "/norestart" -Wait -PassThru
+        
+        if ($process.ExitCode -eq 0) {
+            # Refresh environment
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            
+            if (Test-NodeVersion) {
+                Write-OK "Node.js $(node --version) instalado com sucesso"
+                return $true
+            }
+        }
+        
+        throw "Falha na instalacao do Node.js"
+    }
+    catch {
+        Write-Err "Falha ao instalar Node.js automaticamente: $_"
+        Write-Info "Por favor, instale manualmente:"
+        Write-Info "1. Acesse: https://nodejs.org/"
+        Write-Info "2. Baixe a versao LTS (v20 ou superior)"
+        Write-Info "3. Execute o instalador"
+        Write-Info "4. Reinicie o PowerShell e execute este script novamente"
+        Read-Host "Pressione ENTER para sair"
+        exit 1
+    }
+}
+
+function Install-Git {
+    Write-Header "Instalacao Automatica - Git"
+    Write-Info "Git nao encontrado. Iniciando instalacao automatica..."
+    
+    try {
+        # Try winget first
+        $wingetExists = Get-Command winget -ErrorAction SilentlyContinue
+        if ($wingetExists) {
+            Write-Info "Instalando Git via winget..."
+            Write-Info "Isso pode levar alguns minutos..."
+            
+            $process = Start-Process -FilePath "winget" -ArgumentList "install", "Git.Git", "--accept-source-agreements", "--accept-package-agreements", "-e" -Wait -PassThru
+            
+            if ($process.ExitCode -eq 0) {
+                # Refresh environment
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                
+                if (Test-GitInstalled) {
+                    Write-OK "Git $(git --version) instalado com sucesso"
+                    return $true
+                }
+            }
+        }
+        
+        # Fallback: Download and install manually
+        Write-Info "Baixando Git..."
+        $gitUrl = "https://github.com/git-for-windows/git/releases/download/v2.43.0.windows.1/Git-2.43.0-64-bit.exe"
+        $gitInstaller = "$env:TEMP\git-installer.exe"
+        
+        Invoke-WebRequest -Uri $gitUrl -OutFile $gitInstaller -UseBasicParsing
+        
+        Write-Info "Instalando Git..."
+        $process = Start-Process -FilePath $gitInstaller -ArgumentList "/VERYSILENT", "/NORESTART", "/NOCANCEL" -Wait -PassThru
+        
+        if ($process.ExitCode -eq 0) {
+            # Refresh environment
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            
+            if (Test-GitInstalled) {
+                Write-OK "Git instalado com sucesso"
+                return $true
+            }
+        }
+        
+        throw "Falha na instalacao do Git"
+    }
+    catch {
+        Write-Err "Falha ao instalar Git automaticamente: $_"
+        Write-Info "Por favor, instale manualmente:"
+        Write-Info "1. Acesse: https://git-scm.com/download/win"
+        Write-Info "2. Baixe e execute o instalador"
+        Write-Info "3. Reinicie o PowerShell e execute este script novamente"
+        Read-Host "Pressione ENTER para sair"
+        exit 1
+    }
+}
+
+function Test-NodeVersion {
+    try {
+        $nodeVersion = node --version 2>$null
+        if (-not $nodeVersion) { return $false }
+        $versionMatch = $nodeVersion -match 'v(\d+)'
+        if ($versionMatch) {
+            return [int]$matches[1] -ge 20
+        }
+        return $false
+    }
+    catch { return $false }
+}
+
+function Test-GitInstalled {
+    try {
+        $gitVersion = git --version 2>$null
+        return [bool]$gitVersion
+    }
+    catch { return $false }
 }
 
 # ============================================================================
@@ -127,7 +268,7 @@ console.log(hash);
         Write-Err "Falha ao gerar hash: $_"
         Write-Info "Tentando metodo alternativo..."
         
-        # Fallback: generate simple hash (should not happen normally)
+        # Fallback
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($PlainPassword)
         $sha256 = [System.Security.Cryptography.SHA256]::Create()
         $hashBytes = $sha256.ComputeHash($bytes)
@@ -181,7 +322,7 @@ function Get-LocalIP {
             Where-Object { 
                 $_.IPAddress -ne '127.0.0.1' -and 
                 $_.IPAddress -notlike '169.254.*' -and
-                $_.PrefixOrigin -eq 'Dhcp' -or $_.PrefixOrigin -eq 'Manual'
+                ($_.PrefixOrigin -eq 'Dhcp' -or $_.PrefixOrigin -eq 'Manual')
             }
         
         # Prefer Ethernet, then Wi-Fi
@@ -301,39 +442,6 @@ function Show-FinalResult($IsUpdate, $ServiceStatus) {
     Write-Host ""
     Write-Host "Pressione ENTER para finalizar..." -ForegroundColor Yellow
     Read-Host
-}
-
-# ============================================================================
-# DEPENDENCY CHECKS
-# ============================================================================
-
-function Test-NodeVersion {
-    try {
-        $nodeVersion = node --version 2>$null
-        if (-not $nodeVersion) { return $false }
-        $versionMatch = $nodeVersion -match 'v(\d+)'
-        if ($versionMatch) {
-            return [int]$matches[1] -ge 20
-        }
-        return $false
-    }
-    catch { return $false }
-}
-
-function Test-GitInstalled {
-    try {
-        $gitVersion = git --version 2>$null
-        return [bool]$gitVersion
-    }
-    catch { return $false }
-}
-
-function Test-OpenClawCLI {
-    try {
-        $version = openclaw --version 2>$null
-        return [bool]$version
-    }
-    catch { return $false }
 }
 
 # ============================================================================
@@ -563,26 +671,27 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 }
 
 Clear-Host
-Write-Header "OpenClaw Control - Instalador Windows"
+Write-Header "OpenClaw Control - Instalador Windows (Auto-Install)"
 
-# Check dependencies
+# Check and install Node.js
 Write-Info "Verificando Node.js..."
 if (-not (Test-NodeVersion)) {
-    Write-Err "Node.js 20+ nao encontrado!"
-    Write-Info "Instale o Node.js: https://nodejs.org/"
-    Read-Host "Pressione ENTER para sair"
-    exit 1
+    Write-Warn "Node.js nao encontrado"
+    Install-NodeJS
 }
-Write-OK "Node.js $(node --version) encontrado"
+else {
+    Write-OK "Node.js $(node --version) encontrado"
+}
 
+# Check and install Git
 Write-Info "Verificando Git..."
 if (-not (Test-GitInstalled)) {
-    Write-Err "Git nao encontrado!"
-    Write-Info "Instale o Git: https://git-scm.com/download/win"
-    Read-Host "Pressione ENTER para sair"
-    exit 1
+    Write-Warn "Git nao encontrado"
+    Install-Git
 }
-Write-OK "Git encontrado"
+else {
+    Write-OK "Git $(git --version) encontrado"
+}
 
 # Detect local IP
 Get-LocalIP
