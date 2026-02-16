@@ -521,33 +521,62 @@ function Install-WindowsService {
     
     # Download NSSM if needed
     if (-not (Test-Path $nssmPath)) {
-        Write-Info "Baixando NSSM..."
+        Write-Info "Baixando NSSM (Non-Sucking Service Manager)..."
         try {
             $nssmDir = "$ProjectRoot\nssm"
             New-Item -ItemType Directory -Path $nssmDir -Force | Out-Null
             
             $nssmZip = "$env:TEMP\nssm-$NSSMVersion.zip"
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            
+            Write-Info "Fazendo download do NSSM..."
             Invoke-WebRequest -Uri $NSSMDownloadUrl -OutFile $nssmZip -UseBasicParsing
             
+            if (-not (Test-Path $nssmZip)) {
+                throw "Download falhou - arquivo nao encontrado"
+            }
+            
+            Write-Info "Extraindo NSSM..."
             Expand-Archive -Path $nssmZip -DestinationPath "$env:TEMP\nssm-extract" -Force
             
             $win32Exe = Get-ChildItem -Path "$env:TEMP\nssm-extract" -Recurse -Filter "nssm.exe" | 
+                Where-Object { $_.DirectoryName -like "*win32*" } |
                 Select-Object -First 1
             
+            if (-not $win32Exe) {
+                # Try without win32 filter
+                $win32Exe = Get-ChildItem -Path "$env:TEMP\nssm-extract" -Recurse -Filter "nssm.exe" | 
+                    Select-Object -First 1
+            }
+            
             if ($win32Exe) {
+                Write-Info "Copiando nssm.exe para $nssmDir..."
                 Copy-Item -Path $win32Exe.FullName -Destination $nssmDir -Force
                 Remove-Item -Path $nssmZip -Force -ErrorAction SilentlyContinue
                 Remove-Item -Path "$env:TEMP\nssm-extract" -Recurse -Force -ErrorAction SilentlyContinue
-                Write-OK "NSSM instalado"
+                Write-OK "NSSM instalado em $nssmPath"
+            }
+            else {
+                throw "nssm.exe nao encontrado no arquivo zip"
             }
         }
         catch {
             Write-Err "Falha ao instalar NSSM: $_"
-            exit 1
+            Write-Info "Tentando continuar sem NSSM (modo manual)..."
+            return 'NotInstalled'
         }
     }
+    else {
+        Write-OK "NSSM ja existe em $nssmPath"
+    }
     
+    # Verify NSSM exists
+    if (-not (Test-Path $nssmPath)) {
+        Write-Err "NSSM nao encontrado em $nssmPath"
+        return 'NotInstalled'
+    }
+    
+    # Check if service already exists
     if (Test-ServiceExists) {
         Write-Info "Servico ja existe, apenas reiniciando..."
         return (Start-OpenClawService)
@@ -555,23 +584,71 @@ function Install-WindowsService {
     
     Write-Info "Criando novo servico $ServiceName..."
     
+    # Create log directory
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
     
     $nodeExe = (Get-Command node).Source
+    Write-Info "Node.js encontrado em: $nodeExe"
+    Write-Info "Diretorio do projeto: $ProjectRoot"
+    Write-Info "Arquivo de entrada: $ProjectRoot\src\server.js"
     
-    & $nssmPath install $ServiceName $nodeExe "$ProjectRoot\src\server.js"
-    & $nssmPath set $ServiceName AppDirectory $ProjectRoot
-    & $nssmPath set $ServiceName AppRestartDelay 5000
-    & $nssmPath set $ServiceName AppStdout "$LogDir\stdout.log"
-    & $nssmPath set $ServiceName AppStderr "$LogDir\stderr.log"
-    & $nssmPath set $ServiceName AppRotateFiles 1
-    & $nssmPath set $ServiceName AppRotateOnline 1
-    & $nssmPath set $ServiceName AppRotateSeconds 86400
-    & $nssmPath set $ServiceName AppRotateBytes 10485760
-    & $nssmPath set $ServiceName Start SERVICE_AUTO_START
-    
-    Write-OK "Servico criado"
-    return (Start-OpenClawService)
+    try {
+        # Install service using NSSM
+        Write-Info "Registrando servico no Windows..."
+        $installOutput = & $nssmPath install $ServiceName $nodeExe "$ProjectRoot\src\server.js" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao registrar servico: $installOutput"
+        }
+        Write-OK "Servico registrado"
+        
+        # Configure service parameters
+        Write-Info "Configurando parametros do servico..."
+        
+        $params = @(
+            @{name="AppDirectory"; value=$ProjectRoot},
+            @{name="AppRestartDelay"; value="5000"},
+            @{name="AppStdout"; value="$LogDir\stdout.log"},
+            @{name="AppStderr"; value="$LogDir\stderr.log"},
+            @{name="AppRotateFiles"; value="1"},
+            @{name="AppRotateOnline"; value="1"},
+            @{name="AppRotateSeconds"; value="86400"},
+            @{name="AppRotateBytes"; value="10485760"},
+            @{name="Start"; value="SERVICE_AUTO_START"}
+        )
+        
+        foreach ($param in $params) {
+            $output = & $nssmPath set $ServiceName $param.name $param.value 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warn "Falha ao configurar $($param.name): $output"
+            }
+        }
+        
+        Write-OK "Parametros configurados"
+        
+        # Verify service was created
+        Start-Sleep -Seconds 2
+        if (Test-ServiceExists) {
+            Write-OK "Servico $ServiceName criado com sucesso"
+            return (Start-OpenClawService)
+        }
+        else {
+            throw "Servico nao aparece na lista apos criacao"
+        }
+    }
+    catch {
+        Write-Err "Erro ao criar servico: $_"
+        Write-Info "Verificando logs..."
+        
+        # Show error details
+        if (Test-Path "$LogDir\stderr.log") {
+            Write-Info "Conteudo do log de erros:"
+            Get-Content "$LogDir\stderr.log" -Tail 10 | ForEach-Object {
+                Write-Host "    $_" -ForegroundColor Gray
+            }
+        }
+        
+        return 'NotInstalled'
+    }
 }
 
 # ============================================================================
